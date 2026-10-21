@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual BioTech & BioChem Laboratory v12.0</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.5.5/3Dmol-min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --card-bg: #151b26;
+      --border: #2a3444;
+      --text: #e2e8f0;
+      --text-muted: #8b949e;
+      --highlight: #58a6ff;
+      --accent: #238636;
+      --accent-glow: #2ea043;
+      --warn: #d29922;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 12px;
+      height: 54px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; overflow-x: auto; }
+    .brand h1 { font-size: 0.86rem; color: #f8fafc; font-weight: 600; white-space: nowrap; }
+    .nav-tabs { display: flex; gap: 3px; }
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 5px 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.69rem;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .tab-btn.active {
+      background: rgba(88, 166, 255, 0.14);
+      color: var(--highlight);
+      border-color: rgba(88, 166, 255, 0.35);
+    }
+    .header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .status-badge {
+      font-size: 0.68rem;
+      padding: 4px 8px;
+      background: rgba(35, 134, 54, 0.2);
+      color: #3fb950;
+      border: 1px solid #238636;
+      border-radius: 12px;
+      white-space: nowrap;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 330px 1fr 350px;
+      flex: 1;
+      overflow: hidden;
+    }
+    .panel {
+      padding: 16px;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      background: var(--bg);
+    }
+    .panel.right {
+      border-right: none;
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    h2 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      letter-spacing: 0.8px;
+    }
+    .control-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.78rem; margin-bottom: 4px; color: var(--text); }
+    .val-display { float: right; font-weight: 600; color: var(--highlight); }
+    input[type=range] { width: 100%; accent-color: var(--highlight); }
+    input[type=text], input[type=number], textarea, select, button {
+      width: 100%;
+      padding: 7px 10px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      outline: none;
+    }
+    textarea { font-family: monospace; resize: vertical; min-height: 64px; }
+    button { cursor: pointer; transition: background 0.15s; }
+    button:hover { background: #1f2937; }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent-glow);
+      color: #fff;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    button.primary:hover { background: var(--accent-glow); }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+    .workspace-view {
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 14px;
+      overflow-y: auto;
+      height: 100%;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .mol-container {
+      flex: 1;
+      background: #05070b;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      position: relative;
+      min-height: 390px;
+      overflow: hidden;
+    }
+    #molViewport { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+    .telemetry-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .metric-card .label { font-size: 0.68rem; color: var(--text-muted); }
+    .metric-card .val { font-size: 0.94rem; font-weight: 700; color: #f8fafc; margin-top: 3px; }
+    pre {
+      background: #05070a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.72rem;
+      color: #7ee787;
+      flex: 1;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .seq-box {
+      font-family: monospace;
+      font-size: 0.76rem;
+      background: #070a0f;
+      border: 1px solid var(--border);
+      padding: 10px;
+      border-radius: 6px;
+      word-break: break-all;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+    .gel-wrap {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 14px;
+      flex: 1;
+    }
+    canvas#gelCanvas {
+      background: #06080c;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      width: 100%;
+      height: 360px;
+    }
+    .plasmid-split {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 14px;
+      flex: 1;
+      min-height: 310px;
+    }
+    .plate-split {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 14px;
+      flex: 1;
+      min-height: 340px;
+    }
+    .pkpd-split {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 14px;
+      flex: 1;
+      min-height: 340px;
+    }
+    .cart-split {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 14px;
+      flex: 1;
+      min-height: 330px;
+    }
+    .crispr-split {
+      display: grid;
+      grid-template-columns: 330px 1fr;
+      gap: 14px;
+      flex: 1;
+      min-height: 330px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <h1>🔬 Virtual BioTech Lab v12.0</h1>
+      <div class="nav-tabs">
+        <button class="tab-btn active" data-bench="molecular">1. 3D Molecular</button>
+        <button class="tab-btn" data-bench="wetlab">2. Kinetics</button>
+        <button class="tab-btn" data-bench="genetics">3. Genetics &amp; Plasmid</button>
+        <button class="tab-btn" data-bench="pcr">4. PCR &amp; Gel</button>
+        <button class="tab-btn" data-bench="plate">5. 96-Well Plate</button>
+        <button class="tab-btn" data-bench="assembly">6. DNA Assembly</button>
+        <button class="tab-btn" data-bench="pkpd">7. Clinical PK/PD</button>
+        <button class="tab-btn" data-bench="cart">8. CAR-T &amp; Cytometry</button>
+        <button class="tab-btn" data-bench="crispr">9. CRISPR Gene Surgery</button>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="runTestsBtn" style="width:auto; padding:5px 10px; border-color:#58a6ff; color:#58a6ff;">
+        ✓ Verify All 11 Modules
+      </button>
+      <span class="status-badge" id="globalStatus">ELN Hash-Chain Verified</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT PANEL: BENCH CONTROLS -->
+    <div class="panel">
+      <!-- 1. Molecular Studio Controls -->
+      <div id="ctrl-molecular" class="bench-ctrl">
+        <h2>3D Macromolecule Explorer</h2>
+        <div class="control-group">
+          <label>Curated Structure Library</label>
+          <select id="pdbPreset">
+            <option value="1EMA">1EMA — Green Fluorescent Protein (GFP)</option>
+            <option value="6LU7">6LU7 — SARS-CoV-2 Mpro + Inhibitor</option>
+            <option value="4OO8">4OO8 — CRISPR-Cas9 + sgRNA + DNA</option>
+            <option value="1BNA">1BNA — B-DNA Double Helix Dodecamer</option>
+            <option value="4INS">4INS — Human Insulin Hexamer (Zn2+)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Custom 4-Char RCSB PDB ID</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="customPdbInput" placeholder="e.g. 1CRN" maxlength="4">
+            <button id="loadCustomPdbBtn" class="primary" style="width:85px; margin:0;">Fetch</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>Backbone Style</label>
+          <select id="molStyle">
+            <option value="cartoon">Ribbon / Cartoon</option>
+            <option value="stick">Covalent Sticks</option>
+            <option value="sphere">Van der Waals Spheres</option>
+            <option value="line">Wireframe</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Color Scheme</label>
+          <select id="molColor">
+            <option value="spectrum">Rainbow N-to-C Spectrum</option>
+            <option value="ssJmol">Secondary Structure</option>
+            <option value="chain">By Subunit Chain</option>
+          </select>
+        </div>
+        <button class="primary" id="highlightPocketBtn">Isolate Active-Site Pocket (4.5 Å)</button>
+        <div class="btn-row">
+          <button id="toggleSurfBtn">VdW Surface</button>
+          <button id="toggleSpinBtn">Auto-Spin</button>
+        </div>
+      </div>
+
+      <!-- 2. Wet-Lab Kinetics Controls -->
+      <div id="ctrl-wetlab" class="bench-ctrl" style="display:none;">
+        <h2>RK4 Kinetic &amp; Fermentation Solver</h2>
+        <div class="control-group">
+          <label>Assay Protocol</label>
+          <select id="wetMode">
+            <option value="kinetics">Michaelis-Menten Enzyme Kinetics</option>
+            <option value="bioreactor">Monod Microbial Fermentation</option>
+          </select>
+        </div>
+        <div id="kinInputs">
+          <div class="control-group">
+            <label>Substrate [S]₀ (mM) <span class="val-display" id="lblS0">15.0</span></label>
+            <input type="range" id="inpS0" min="1" max="50" step="0.5" value="15">
+          </div>
+          <div class="control-group">
+            <label>Enzyme [E] (µM) <span class="val-display" id="lblE0">50</span></label>
+            <input type="range" id="inpE0" min="5" max="200" step="5" value="50">
+          </div>
+          <div class="control-group">
+            <label>Reversible Inhibitor Regimen</label>
+            <select id="inpInhType">
+              <option value="none">Uninhibited Control</option>
+              <option value="competitive">Competitive ([I] = 2.0 mM)</option>
+              <option value="noncompetitive">Non-Competitive ([I] = 2.0 mM)</option>
+              <option value="uncompetitive">Uncompetitive ([I] = 2.0 mM)</option>
+            </select>
+          </div>
+        </div>
+        <div id="bioInputs" style="display:none;">
+          <div class="control-group">
+            <label>Bioreactor Temp (°C) <span class="val-display" id="lblTemp">37.0</span></label>
+            <input type="range" id="inpTemp" min="20" max="50" step="0.5" value="37">
+          </div>
+          <div class="control-group">
+            <label>Medium pH <span class="val-display" id="lblPh">7.0</span></label>
+            <input type="range" id="inpPh" min="4.5" max="9.0" step="0.1" value="7.0">
+          </div>
+          <div class="control-group">
+            <label>Feed Glucose (g/L) <span class="val-display" id="lblGlu">20.0</span></label>
+            <input type="range" id="inpGlu" min="2" max="50" step="1" value="20">
+          </div>
+        </div>
+        <button class="primary" id="startWetBtn">Run RK4 Simulation</button>
+        <button id="resetWetBtn" style="margin-top:6px;">Flush &amp; Reset Chamber</button>
+      </div>
+
+      <!-- 3. Genetics & Mutagenesis Controls -->
+      <div id="ctrl-genetics" class="bench-ctrl" style="display:none;">
+        <h2>Mutagenesis &amp; Restriction Cloning</h2>
+        <div class="control-group">
+          <label>Coding DNA Sequence (5' → 3')</label>
+          <textarea id="dnaInput">ATGGCTAGCAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGATGGTGATGTTAATGGGCACAAATTTTCTGTCAGTGGAGAGGGTGAAGGTGATGCAACATACGGAAAACTTACCCTTAAATTTATTTGCACTACTGGAAAACTACCTGTTCCATGGCCAACACTTGTCACTACTTTCTCTTATGGTGTTCAATGCTTTTCCCGTTATCCGGATCACATGAAACGGCATGACTTTTTCAAGAGTGCCATGCCCGAAGGTTATGTACAGGAACGCACTATATCTTTCAAAGATGACGGGAACTACAAGACGCGTGCTGAAGTCAAGTTTGAAGGTGATACCCTTGTTAATCGTATCGAGTTAAAAGGTATTGATTTTAAAGAAGATGGAAACATTCTCGGACACAAACTCGAGTACAACTATAACTCACACAATGTATACATCACGGCAGACAAACAAAAGAATGGAATCAAAGCTAACTTCAAAATTCGCCACAACATTGAAAGATGGAGCGTTCAACTAGCAGACCATTATCAACAAAATACTCCAATTGGCGATGGCCCTGTCCTTTTACCAGACAACCATTACCTGTCCACACAATCTGCCCTTTCGAAAGATCCCAACGAAAAGCGTGACCACATGGTCCTTCTTGAGTTTGTAACTGCTGCTGGGATTACACATGGCATGGATGAGCTCTACAAATAA</textarea>
+        </div>
+        <div class="btn-row">
+          <div class="control-group">
+            <label>Base Position (1-idx)</label>
+            <input type="number" id="mutPos" value="196" min="1">
+          </div>
+          <div class="control-group">
+            <label>Substitute Base</label>
+            <select id="mutBase">
+              <option value="A">A</option><option value="T">T</option>
+              <option value="G">G</option><option value="C">C</option>
+            </select>
+          </div>
+        </div>
+        <button class="primary" id="applyMutBtn">Execute Point Mutation</button>
+        <hr style="border:none; border-top:1px solid var(--border); margin:12px 0;">
+        <div class="control-group">
+          <label>Restriction Enzymes</label>
+          <select id="digestEnzymes" multiple style="height:82px;">
+            <option value="BamHI" selected>BamHI (G^GATCC)</option>
+            <option value="EcoRI" selected>EcoRI (G^AATTC)</option>
+            <option value="XhoI" selected>XhoI (C^TCGAG)</option>
+            <option value="HindIII">HindIII (A^AGCTT)</option>
+            <option value="KpnI">KpnI (GGTAC^C)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>DNA Topology</label>
+          <select id="dnaTopology">
+            <option value="circular">Circular Plasmid Vector</option>
+            <option value="linear">Linear Amplicon</option>
+          </select>
+        </div>
+        <button class="primary" id="runDigestBtn">Digest DNA &amp; Cast to Gel</button>
+      </div>
+
+      <!-- 4. PCR & Gel Controls -->
+      <div id="ctrl-pcr" class="bench-ctrl" style="display:none;">
+        <h2>Thermocycler &amp; Gel Electrophoresis</h2>
+        <div class="control-group">
+          <label>Forward Primer (5' → 3')</label>
+          <input type="text" id="fwdPrimer" value="ATGGCTAGCAAAGGAGAAGA">
+        </div>
+        <div class="control-group">
+          <label>Reverse Primer (5' → 3')</label>
+          <input type="text" id="revPrimer" value="TTATTTGTAGAGCTCATCCA">
+        </div>
+        <div class="btn-row">
+          <div class="control-group">
+            <label>Anneal Ta (°C)</label>
+            <input type="number" id="pcrTa" value="56" step="0.5">
+          </div>
+          <div class="control-group">
+            <label>PCR Cycles</label>
+            <input type="number" id="pcrCycles" value="30" min="5" max="45">
+          </div>
+        </div>
+        <div class="control-group">
+          <label>Agarose Gel Density (%) <span class="val-display" id="lblGelPct">1.2%</span></label>
+          <input type="range" id="gelPct" min="0.7" max="2.5" step="0.1" value="1.2">
+        </div>
+        <button class="primary" id="runPcrBtn">Amplify &amp; Run Electrophoresis</button>
+      </div>
+
+      <!-- 5. 96-Well Microplate Controls -->
+      <div id="ctrl-plate" class="bench-ctrl" style="display:none;">
+        <h2>96-Well High-Throughput Screening</h2>
+        <div class="control-group">
+          <label>Col 1 Max Substrate [S] (mM) <span class="val-display" id="lblPlateS">40.0</span></label>
+          <input type="range" id="plateS" min="10" max="80" step="5" value="40">
+        </div>
+        <div class="control-group">
+          <label>Serial Dilution Factor <span class="val-display" id="lblPlateDil">1.55x</span></label>
+          <input type="range" id="plateDil" min="1.2" max="2.5" step="0.05" value="1.55">
+        </div>
+        <div class="control-group">
+          <label>Inhibitor Conc [I] (mM) <span class="val-display" id="lblPlateI">3.0</span></label>
+          <input type="range" id="plateI" min="0.5" max="10.0" step="0.5" value="3.0">
+        </div>
+        <div class="control-group">
+          <label>Active Row for Lineweaver-Burk</label>
+          <select id="plateRowSelect">
+            <option value="0">Row A — Uninhibited Control</option>
+            <option value="1">Row B — Competitive Inhibitor (+Km)</option>
+            <option value="2">Row C — Non-Competitive (-Vmax)</option>
+            <option value="3">Row D — Uncompetitive (-Vmax, -Km)</option>
+          </select>
+        </div>
+        <button class="primary" id="runPlateBtn">Dispense &amp; Read 96-Well Plate</button>
+      </div>
+
+      <!-- 6. Assembly Studio Controls -->
+      <div id="ctrl-assembly" class="bench-ctrl" style="display:none;">
+        <h2>Synthetic Biology DNA Assembly</h2>
+        <div class="control-group">
+          <label>Assembly Protocol (Auto-Loads Preset Parts)</label>
+          <select id="assemblyMethod">
+            <option value="goldengate">Golden Gate (Type IIS BsaI Scarless)</option>
+            <option value="gibson">Gibson Assembly (22-bp Isothermal Overlap)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Part 1: Promoter / Vector Core</label>
+          <input type="text" id="asmPart1" value="GGTCTCGTACTACCTGACGATCGTACTAATGCGAGACC">
+        </div>
+        <div class="control-group">
+          <label>Part 2: Coding Sequence (GFP)</label>
+          <input type="text" id="asmPart2" value="GGTCTCGAATGATGAGTAAAGGAGAAGAACTTTTCACTGGAGCTTCGAGACC">
+        </div>
+        <div class="control-group">
+          <label>Part 3: Terminator (Circularizes to Part 1)</label>
+          <input type="text" id="asmPart3" value="GGTCTCGGCTTTAAGCGTCAGTGACCATTACTCGAGACC">
+        </div>
+        <button class="primary" id="runAssemblyBtn">Execute DNA Assembly</button>
+      </div>
+
+      <!-- 7. Human Clinical PK/PD & Physiology Controls -->
+      <div id="ctrl-pkpd" class="bench-ctrl" style="display:none;">
+        <h2>Clinical Pharmacology &amp; Organ Safety</h2>
+        <div class="control-group">
+          <label>Drug Candidate / Therapeutic Regimen</label>
+          <select id="pkDrugPreset">
+            <option value="antiviral_mpro">Nirmatrelvir-Like Antiviral (Mpro Inhibitor)</option>
+            <option value="acetaminophen">Acetaminophen (Hepatotoxic at Overdose)</option>
+            <option value="antiarrhythmic">Class III Antiarrhythmic (hERG / QTc Risk)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Administration Route</label>
+          <select id="pkRoute">
+            <option value="oral">Oral Tablet (First-Pass GI Absorption)</option>
+            <option value="iv_bolus">IV Bolus Injection (Direct Vascular)</option>
+            <option value="iv_infusion">Continuous IV Drip Infusion</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Unit Dose (mg) <span class="val-display" id="lblPkDose">300 mg</span></label>
+          <input type="range" id="pkDose" min="10" max="4500" step="10" value="300">
+        </div>
+        <div class="btn-row">
+          <div class="control-group">
+            <label>Dosing Interval (h)</label>
+            <select id="pkInterval">
+              <option value="6">Every 6h (q6h)</option>
+              <option value="8">Every 8h (q8h)</option>
+              <option value="12" selected>Every 12h (q12h)</option>
+              <option value="24">Every 24h (q24h)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label>Trial Duration (h)</label>
+            <select id="pkDuration">
+              <option value="24">24 Hours</option>
+              <option value="48" selected>48 Hours</option>
+              <option value="72">72 Hours</option>
+            </select>
+          </div>
+        </div>
+        <button class="primary" id="runPkpdBtn">Simulate Clinical Trial Regimen</button>
+      </div>
+
+      <!-- 8. CAR-T Cell Therapy & Flow Cytometry Controls -->
+      <div id="ctrl-cart" class="bench-ctrl" style="display:none;">
+        <h2>CAR-T Immunotherapy &amp; Cytometry</h2>
+        <div class="control-group">
+          <label>Engineered CAR Receptor Construct</label>
+          <select id="carPreset">
+            <option value="anti_cd19_41bb">Anti-CD19 (4-1BB-CD3ζ — High Persistence)</option>
+            <option value="anti_cd19_cd28">Anti-CD19 (CD28-CD3ζ — Rapid Burst / CRS)</option>
+            <option value="anti_her2_solid">Anti-HER2 Solid Tumor (High PD-L1 Barrier)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Costimulatory Signaling Domain</label>
+          <select id="carCostim">
+            <option value="4-1BB">4-1BB (CD137 — Durable Memory Phenotype)</option>
+            <option value="CD28">CD28 (Rapid Cytolysis / High IL-6 Release)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Effector-to-Target (E:T) Ratio <span class="val-display" id="lblCarET">2.0 : 1</span></label>
+          <input type="range" id="carET" min="0.25" max="8.0" step="0.25" value="2.0">
+        </div>
+        <div class="control-group">
+          <label>Tumor PD-L1 Checkpoint Shield <span class="val-display" id="lblCarPdl1">0.35</span></label>
+          <input type="range" id="carPdl1" min="0.0" max="1.0" step="0.05" value="0.35">
+        </div>
+        <div class="control-group">
+          <label>Checkpoint Combination Therapy</label>
+          <select id="carAntiPd1">
+            <option value="off">Monotherapy (No Checkpoint Blockade)</option>
+            <option value="on">+ Anti-PD-1 mAb (Rescues Exhausted CAR-T)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Inspect Timepoint Snapshot (h) <span class="val-display" id="lblCarTime">24 h</span></label>
+          <input type="range" id="carTimeSlider" min="0" max="48" step="2" value="24">
+        </div>
+        <button class="primary" id="runCartBtn">Run CAR-T Engagement &amp; Flow Assay</button>
+      </div>
+
+      <!-- 9. CRISPR Off-Target Genome Cleavage Controls -->
+      <div id="ctrl-crispr" class="bench-ctrl" style="display:none;">
+        <h2>CRISPR Precision Gene Surgery</h2>
+        <div class="control-group">
+          <label>Clinical Genomic Target Locus</label>
+          <select id="crisprPreset">
+            <option value="hbb_sickle">HBB — β-Globin Sickle Cell (Chr11p15.4)</option>
+            <option value="ccr5_hiv">CCR5 — HIV-1 Coreceptor Knockout (Chr3p21)</option>
+            <option value="pcsk9_lipid">PCSK9 — Hepatic LDL Regulator (Chr1p32)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>20-nt Guide RNA Spacer (5' → 3')</label>
+          <input type="text" id="crisprGuideInput" value="CTTGCCCCACAGGGCAGTAA" maxlength="20" style="font-family:monospace;">
+        </div>
+        <div class="control-group">
+          <label>Epigenetic Chromatin State Override</label>
+          <select id="crisprChromatin">
+            <option value="native">Locus-Native ATAC-Seq Profile</option>
+            <option value="euchromatin">Force Open Euchromatin (100% Access)</option>
+            <option value="poised">Force Poised Facultative (65% Access)</option>
+            <option value="heterochromatin">Force Condensed Heterochromatin (18%)</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <div class="control-group">
+            <label>HDR Donor Template</label>
+            <select id="crisprDonor">
+              <option value="yes" selected>ssODN / AAV6 Present</option>
+              <option value="no">None (NHEJ Knockout)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label>DNA-PKcs Inhibitor</label>
+            <select id="crisprNhejInh">
+              <option value="off">Untreated Control</option>
+              <option value="on">+ M3814 (Boosts HDR)</option>
+            </select>
+          </div>
+        </div>
+        <button class="primary" id="runCrisprBtn">Scan 24-Chr Genome &amp; Align Duplex</button>
+      </div>
+    </div>
+
+    <!-- CENTER WORKSPACE -->
+    <div class="workspace-view">
+      <!-- Bench 1: 3D Molecular Studio -->
+      <div id="view-molecular" class="bench-view" style="display:flex; flex-direction:column; flex:1; gap:12px;">
+        <div class="mol-container">
+          <div id="molViewport"></div>
+        </div>
+        <div class="telemetry-grid">
+          <div class="metric-card"><div class="label">Total Atoms</div><div class="val" id="statAtoms">—</div></div>
+          <div class="metric-card"><div class="label">Residues</div><div class="val" id="statRes">—</div></div>
+          <div class="metric-card"><div class="label">Bound Ligands</div><div class="val" id="statLig">—</div></div>
+          <div class="metric-card"><div class="label">Last Distance</div><div class="val" id="statDist">Click 2 Atoms</div></div>
+        </div>
+      </div>
+
+      <!-- Bench 2: Wet-Lab Kinetics -->
+      <div id="view-wetlab" class="bench-view" style="display:none; flex-direction:column; flex:1; gap:12px;">
+        <div class="card" style="height:340px;"><canvas id="wetChart"></canvas></div>
+        <div class="telemetry-grid">
+          <div class="metric-card"><div class="label" id="wLbl1">Velocity (v)</div><div class="val" id="wVal1">0.00 mM/s</div></div>
+          <div class="metric-card"><div class="label" id="wLbl2">Product [P]</div><div class="val" id="wVal2">0.00 mM</div></div>
+          <div class="metric-card"><div class="label" id="wLbl3">Absorbance (A420)</div><div class="val" id="wVal3">0.000 AU</div></div>
+          <div class="metric-card"><div class="label" id="wLbl4">Apparent Km</div><div class="val" id="wVal4">2.50 mM</div></div>
+        </div>
+      </div>
+
+      <!-- Bench 3: Genetics & Plasmid Map -->
+      <div id="view-genetics" class="bench-view" style="display:none; flex-direction:column; flex:1; gap:12px;">
+        <div class="card">
+          <h2>Translated Polypeptide (+1 Frame) &amp; Mutagenesis</h2>
+          <div class="seq-box" id="proteinOutput"></div>
+        </div>
+        <div class="telemetry-grid">
+          <div class="metric-card"><div class="label">Mutation Class</div><div class="val" id="gClass">Wild-Type</div></div>
+          <div class="metric-card"><div class="label">Peptide Mass</div><div class="val" id="gMass">— Da</div></div>
+          <div class="metric-card"><div class="label">Net Charge (pH 7.4)</div><div class="val" id="gCharge">—</div></div>
+          <div class="metric-card"><div class="label">GRAVY Hydropathy</div><div class="val" id="gGravy">—</div></div>
+        </div>
+        <div class="plasmid-split">
+          <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <h2>Interactive Vector Map (pGFP-UV)</h2>
+            <canvas id="plasmidCanvas" width="310" height="275" style="border-radius:6px; border:1px solid #21262d;"></canvas>
+          </div>
+          <div class="card" style="overflow-y:auto; display:flex; flex-direction:column;">
+            <h2>Restriction Digestion Fragments</h2>
+            <div class="seq-box" id="digestOutput" style="flex:1;">
+              Hover or click on the circular plasmid map to inspect genes and restriction cut sites, or click "Digest DNA &amp; Cast to Gel".
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bench 4: PCR & Gel Electrophoresis -->
+      <div id="view-pcr" class="bench-view" style="display:none; flex-direction:column; flex:1; gap:12px;">
+        <div class="gel-wrap">
+          <div class="card" style="display:flex; flex-direction:column; align-items:center;">
+            <h2>UV Transilluminator Gel</h2>
+            <canvas id="gelCanvas" width="250" height="360"></canvas>
+          </div>
+          <div class="card" style="display:flex; flex-direction:column;">
+            <h2>PCR Amplification Curve</h2>
+            <div style="flex:1; position:relative;"><canvas id="pcrChart"></canvas></div>
+          </div>
+        </div>
+        <div class="telemetry-grid">
+          <div class="metric-card"><div class="label">Primer Tm</div><div class="val" id="pTm">—</div></div>
+          <div class="metric-card"><div class="label">Amplicon Size</div><div class="val" id="pSize">— bp</div></div>
+          <div class="metric-card"><div class="label">Final Yield</div><div class="val" id="pYield">— ng</div></div>
+          <div class="metric-card"><div class="label">Recommended Ta</div><div class="val" id="pRecTa">— °C</div></div>
+        </div>
+      </div>
+
+      <!-- Bench 5: 96-Well Microplate Reader -->
+      <div id="view-plate" class="bench-view" style="display:none; flex-direction:column; flex:1; gap:12px;">
+        <div class="plate-split">
+          <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <h2>96-Well Microplate (Hover to Inspect)</h2>
+            <canvas id="plateCanvas" width="390" height="275" style="border-radius:6px; border:1px solid #21262d;"></canvas>
+          </div>
+          <div class="card" style="display:flex; flex-direction:column;">
+            <h2>Lineweaver-Burk Double-Reciprocal Plot (1/v vs 1/[S])</h2>
+            <div style="flex:1; position:relative;"><canvas id="lbChart"></canvas></div>
+          </div>
+        </div>
+        <div class="telemetry-grid">
+          <div class="metric-card"><div class="label">Fitted Apparent Vmax</div><div class="val" id="lbVmax">— mM/s</div></div>
+          <div class="metric-card"><div class="label">Fitted Apparent Km</div><div class="val" id="lbKm">— mM</div></div>
+          <div class="metric-card"><div class="label">Slope (Km / Vmax)</div><div class="val" id="lbSlope">—</div></div>
+          <div class="metric-card"><div class="label">OLS Fit (R²)</div><div class="val" id="lbR2">—</div></div>
+        </div>
+      </div>
+
+      <!-- Bench 6: Golden Gate & Gibson Assembly Studio -->
+      <div id="view-assembly" class="bench-view" style="display:none; flex-direction:column; flex:1; gap:12px;">
+        <div class="card" style="height:215px; display:flex; flex-direction:column;">
+          <h2>Homology Junction Architecture &amp; Part Alignment</h2>
+          <canvas id="assemblyCanvas" width="720" height="155" style="width:100%; height:100%; border-radius:6px;"></canvas>
+        </div>
+        <div class="card" style="flex:1; overflow-y:auto; display:flex; flex-direction:column;">
+          <h2>In Silico Assembled Construct Sequence &amp; Junction Report</h2>
+          <div class="seq-box" id="assemblyOutput" style="flex:1;">Click "Execute DNA Assembly" to verify homology junctions and stitch parts.</div>
+        </div>
+        <div class="telemetry-grid">
+          <div class="metric-card"><div class="label">Assembly Status</div><div class="val" id="asmStatus">Ready</div></div>
+          <div class="metric-card"><div class="label">Construct Length</div><div class="val" id="asmLen">— bp</div></div>
+          <div class="metric-card"><div class="label">Parts Joined</div><div class="val" id="asmParts">—</div></div>
+          <div class="metric-card"><div class="label">Junction Fidelity</div><div class="val" id="asmFid">—</div></div>
+        </div>
+      </div>
+
+      <!-- Bench 7: Clinical PK/PD & Human Organ Physiology -->
+      <div id="view-pkpd" class="bench-view" style="display:none; flex-direction:column; flex:1; gap:12px;">
+        <div class="pkpd-split">
+          <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <h2>Anatomical Perfusion &amp; Organ Safety HUD</h2>
+            <canvas id="pkpdCanvas" width="290" height="320" style="border-radius:6px; border:1px solid #21262d;"></canvas>
+          </div>
+          <div class="card" style="display:flex; flex-direction:column;">
+            <h2>Systemic Plasma Cp(t), Tissue Ct(t) &amp; Therapeutic Window</h2>
+            <div style="flex:1; position:relative;"><canvas id="pkpdChart"></canvas></div>
+          </div>
+        </div>
+        <div class="telemetry-grid">
+          <div class="metric-card"><div class="label">Peak Plasma (Cmax / AUC)</div><div class="val" id="pkStatCmax">—</div></div>
+          <div class="metric-card"><div class="label">Target Efficacy (Emax Hill)</div><div class="val" id="pkStatEff">— %</div></div>
+          <div class="metric-card"><div class="label">Liver ALT (DILI &gt; 72 U/L)</div><div class="val" id="pkStatAlt">— U/L</div></div>
+          <div class="metric-card"><div class="label">Cardiac QTc / Renal eGFR</div><div class="val" id="pkStatOrgan">—</div></div>
+        </div>
+      </div>
+
+      <!-- Bench 8: CAR-T Immunotherapy & Flow Cytometry Studio -->
+      <div id="view-cart" class="bench-view" style="display:none; flex-direction:column; flex:1; gap:12px;">
+        <div class="cart-split">
+          <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <h2>2D Micro-Tumor Engagement Arena (Hover Cells)</h2>
+            <canvas id="cartArenaCanvas" width="320" height="295" style="border-radius:6px; border:1px solid #21262d;"></canvas>
+          </div>
+          <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <h2>2-Laser Clinical Flow Cytometry (Annexin-V/PI vs CD8)</h2>
+            <canvas id="cartFlowCanvas" width="370" height="295" style="border-radius:6px; border:1px solid #21262d;"></canvas>
+          </div>
+        </div>
+        <div class="telemetry-grid">
+          <div class="metric-card"><div class="label">Tumor Lysis &amp; Clearance</div><div class="val" id="carStatLysis">— %</div></div>
+          <div class="metric-card"><div class="label">CAR-T PD-1 Exhaustion</div><div class="val" id="carStatExh">— %</div></div>
+          <div class="metric-card"><div class="label">Cytokine Surge (IL-6 / IFN-γ)</div><div class="val" id="carStatCyt">—</div></div>
+          <div class="metric-card"><div class="label">Clinical CRS Toxicity Grade</div><div class="val" id="carStatCrs">—</div></div>
+        </div>
+      </div>
+
+      <!-- Bench 9: CRISPR Off-Target Genome Cleavage Studio -->
+      <div id="view-crispr" class="bench-view" style="display:none; flex-direction:column; flex:1; gap:12px;">
+        <div class="crispr-split">
+          <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <h2>24-Chromosome Circos Radar (Click Blips to Inspect)</h2>
+            <canvas id="crisprCircosCanvas" width="310" height="295" style="border-radius:6px; border:1px solid #21262d;"></canvas>
+          </div>
+          <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+            <h2>20-nt sgRNA:DNA Duplex Bubble Aligner &amp; DSB Repair Split</h2>
+            <canvas id="crisprAlignCanvas" width="490" height="190" style="width:100%; border-radius:6px; border:1px solid #21262d;"></canvas>
+            <div class="seq-box" id="crisprLociTable" style="max-height:95px; overflow-y:auto;">
+              Click any chromosomal blip on the Circos Radar to load its 20-nt duplex alignment and thermodynamic mismatch penalties.
+            </div>
+          </div>
+        </div>
+        <div class="telemetry-grid">
+          <div class="metric-card"><div class="label">On-Target Cleavage</div><div class="val" id="crStatOnTarget">— %</div></div>
+          <div class="metric-card"><div class="label">MIT Specificity Score</div><div class="val" id="crStatSpec">— / 100</div></div>
+          <div class="metric-card"><div class="label">Precision HDR Knock-In</div><div class="val" id="crStatHdr">— %</div></div>
+          <div class="metric-card"><div class="label">NHEJ Indel Knockout</div><div class="val" id="crStatNhej">— %</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: ELECTRONIC LAB NOTEBOOK & DATA EXPORT -->
+    <div class="panel right">
+      <h2>Atomic, Vector, Organ, Cell &amp; Locus Inspector</h2>
+      <div class="seq-box" id="inspectorBox">
+        System initialized. Select any bench tab, click atoms in 3D space, hover over the plasmid vector, inspect microwells, human organs, CAR-T synapses, or CRISPR chromosomal loci.
+      </div>
+
+      <h2>Electronic Lab Notebook (21 CFR Part 11 Hash-Chained)</h2>
+      <pre id="elnTerminal"></pre>
+
+      <div class="btn-row">
+        <button id="exportCsvBtn">Export CSV Telemetry</button>
+        <button id="exportJsonBtn">Export JSON Snapshot</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
+<!-- === END OF INDEX.HTML (v12.0) === -->

@@ -251,3 +251,77 @@ Build the Researcher Glass-Box Inspector drawer and Provenance Overlay for the T
 * **Permanent Authorship & Citability (GitHub \+ Zenodo DOI \+ CITATION.cff):** By licensing the repository under MIT or Apache 2.0, adding a CITATION.cff file, and archiving releases on Zenodo, you receive a permanent, citable DOI as the creator and lead author. Whenever researchers use your simulator in a grant, poster, or paper, they cite your name and DOI directly.  
 * **Academic Co-Authorship & Software Papers:** If a lab (such as an IU CDMD group or an open-source AID team) adopts or extends the workbench for a published study, standard academic credit guidelines (CRediT taxonomy: Software, Methodology, Visualization) entitle you to formal co-authorship on resulting papers—or you can publish a standalone peer-reviewed software paper in the Journal of Open Source Software (JOSS) or PLOS Computational Biology.  
 * **Who Sees It & Career Impact:** Your work becomes visible to computational endocrinologists, translational islet bioengineers, open-source artificial pancreas engineers (Tidepool, OpenAPS/Loop), and biotech R\&D engineering leads—demonstrating rare, verifiable proof that you can translate peer-reviewed biomedical mathematics into audited, production-grade simulation software.
+
+* IMPORTANT: PRIORITIZE THIS OVER PREVIOUS INFO IF APPLICABLE:
+* # Canonical T1D Mathematical Specification (Pass 1 Final)
+
+## 1. Coupled 8-State Meal-Insulin-Glucose ODE System (Minutes Time Base)
+State vector: `[Q_sto1, Q_sto2, Q_gut, I_sc1, I_sc2, I_p, X, G]` (integrated via RK4 at `dt = 0.1 min`).
+
+### 1.1 Three-Compartment Meal Absorption (Dalla Man et al. 2007 Eq. 13; 2014 Appendix Eq. A3)
+- `dQ_sto1/dt = -k_gri * Q_sto1 + M(t)` (where `M(t) = D / 15` mg/min over a 15-min meal ingestion window, `0` otherwise)
+- `dQ_sto2/dt = -k_empt(Q_sto) * Q_sto2 + k_gri * Q_sto1`
+- `dQ_gut/dt = -k_abs * Q_gut + k_empt(Q_sto) * Q_sto2`
+- `Q_sto = Q_sto1 + Q_sto2`
+- `k_empt(Q_sto) = k_min + ((k_max - k_min) / 2) * (tanh(alpha * (Q_sto - b * D_bar)) - tanh(beta * (Q_sto - c_thresh * D_bar)) + 2)`
+  - `D_bar = 30000` mg, `alpha = 5 / (2 * D_bar * (1 - b))`, `beta = 5 / (2 * D_bar * c_thresh)`
+- `Ra_meal(t) = (f * k_abs * Q_gut) / BW` (mg/kg/min, with adult cohort mean `BW = 75.2 kg`, Visentin et al. 2018 Table 1)
+- **Verified Registry Constants (Dalla Man et al. 2007 Table I, DOI: 10.1109/TBME.2007.893506 & Dalla Man et al. 2014 Appendix Eq. A3, DOI: 10.1177/1932296813514502):**
+  - `k_max = 0.0558 min^-1` `[0.030, 0.090]`
+  - `k_min = 0.0080 min^-1` `[0.002, 0.020]`
+  - `k_abs = 0.0570 min^-1` `[0.020, 0.120]`
+  - `k_gri = 0.0558 min^-1` `[0.030, 0.090]`
+  - `f = 0.90` (dimensionless) `[0.70, 1.00]`
+  - `b = 0.69` (dimensionless, 2014 T1DMS) `[0.50, 0.90]`
+  - `c_thresh = 0.17` (dimensionless, 2014 T1DMS) `[0.05, 0.35]`
+
+### 1.2 Subcutaneous Insulin Transit & Plasma Glucose Kinetics
+- `dI_sc1/dt = -(k_d + k_a1) * I_sc1 + u(t)` (where `u(t)` is subcutaneous insulin input in `uU/mL-eq/min`; `1 U = 1e6 uU`, normalized by plasma distribution volume `V_I_mL = 50 mL/kg * BW`)
+- `dI_sc2/dt = k_d * I_sc1 - k_a2 * I_sc2`
+- `dI_p/dt = k_a1 * I_sc1 + k_a2 * I_sc2 - k_e * I_p`
+- `dX/dt = -p_2 * X + p_3 * (I_p - I_b)`
+- `dG/dt = -(S_G + X) * G + S_G * G_b + Ra_meal(t) / V_G`
+- **Verified Registry Constants (Dalla Man et al. 2007 Table I, DOI: 10.1109/TBME.2007.893506; Dalla Man et al. 2014 Section 2, DOI: 10.1177/1932296813514502; Visentin et al. 2018 Table 1, PMCID: PMC5851236):**
+  - `k_d = 0.0164 min^-1` `[0.010, 0.025]`
+  - `k_a1 = 0.0018 min^-1` `[0.0005, 0.0050]`
+  - `k_a2 = 0.0182 min^-1` `[0.012, 0.030]`
+  - `k_e = 0.1380 min^-1` `[0.100, 0.200]`
+  - `p_2 = 0.0140 min^-1` `[0.008, 0.022]`
+  - `p_3 = 0.000028 min^-2/(uU/mL)` `[0.00001, 0.00005]`
+  - `S_G = 0.0140 min^-1` `[0.005, 0.030]`
+  - `V_G = 1.49 dL/kg` `[1.20, 1.80]`
+  - `G_b = 119.1 mg/dL` `[70.0, 140.0]` (Visentin et al. 2018 Table 1 fasting mean)
+  - `I_b = 7.0 uU/mL` `[3.0, 15.0]`
+- **Exact Algebraic Fasting Steady-State Initialization (`t = 0`):**
+  - `G(0) = G_b`, `X(0) = 0`, `I_p(0) = I_b`
+  - `u_basal = (k_e * I_b * (k_d + k_a1)) / (k_a1 + k_d)`
+  - `I_sc1(0) = u_basal / (k_d + k_a1)`
+  - `I_sc2(0) = (k_d * I_sc1(0)) / k_a2`
+
+## 2. Encapsulated Islet Oxygen Diffusion (Buchwald 2009 & Fernandez et al. 2022)
+- **Governing Quasi-Steady-State 1D Finite-Difference Profile (solved at each RK4 step):**
+  - `D_eff * d^2(c_O2)/dx^2 = ((R_max * c_O2) / (C_MM + c_O2)) * H_smooth(c_O2 - C_cr) * X_cell`
+  - `D_eff = (1 - X_cell) * D_alg + X_cell * D_tissue`
+  - Partial pressure conversion: `pO2 (mmHg) = c_O2 (mol/m^3) / alpha_O2`, with `alpha_O2 = 1.414e-3 mol/(m^3*mmHg)` at 37°C (Buchwald 2009).
+- **Verified Registry Constants (Buchwald 2009, DOI: 10.1186/1742-4682-6-5; Fernandez et al. 2022 Table 1, DOI: 10.3389/fbioe.2022.884071):**
+  - `R_max_islets = 0.034 mol/(m^3*s)` `[0.015, 0.074]`
+  - `C_MM = 1.0e-3 mol/m^3` (`0.70 mmHg`) `[0.62e-3, 1.5e-3]`
+  - `C_cr = 1.0e-4 mol/m^3` (`0.07 mmHg`) `[0.07e-4, 0.20e-4]`
+  - `D_alg = 2.54e-9 m^2/s` `[1.5e-9, 3.1e-9]`
+  - `D_tissue = 1.24e-9 m^2/s` `[0.8e-9, 2.0e-9]`
+  - `X_cell = 0.010` (experimental volume fraction) `[0.005, 0.058]`
+
+## 3. Hypoimmune Graft Survival ODE (Hu et al. 2023 & 2024)
+- **Governing Survival ODE:**
+  - `df_viable/dt = -(k_immune + k_hypoxia) * f_viable`, `f_viable(0) = 1.0` (rates converted to `min^-1` via `/ 1440`)
+- **Provenance & Parameter Derivation:**
+  - `CD47_min_threshold = 180000 molecules/cell` and `CD47_full_protection = 220000 molecules/cell` (`LITERATURE_TABLE`, Hu et al. 2024, *Nat Biotechnol* 42:413–423, DOI: 10.1038/s41587-023-01784-x).
+  - `k_immune_reject = 0.4605 day^-1` (`DERIVED_FROM_LITERATURE_WINDOW`: `ln(100) / 10 days`, representing 99% rejection at Day 10 from the 7–10 day complete DKO rejection window in Hu et al. 2023, *Sci Transl Med* 15:eadg5794, DOI: 10.1126/scitranslmed.adg5794, Fig. 2H–I).
+  - Gate rule: If `B2M_knockout && CIITA_knockout && CD47 >= 220000`, `k_immune = 0`; if `CD47 < 180000` or MHC intact, `k_immune = 0.4605 day^-1`; linear interpolation on `[180000, 220000]`.
+
+## 4. Cohort Validation Benchmark (Visentin et al. 2018 Table 1 & Fig. 4, PMCID: PMC5851236)
+- **Protocol:** `n = 100` adult cohort (`BW = 75.2 kg`, `G_b = 119.1 mg/dL`), `60 g` (`60,000 mg`) carbohydrate breakfast at `t = 60 min` accompanied by optimal bolus `60 g / CR` (`CR = 16.9 g/U` -> `3.55 U` subcutaneous bolus).
+- **Acceptance Assertions:**
+  1. Pre-meal fasting baseline (`t = 0..60 min`): `G(t)` remains within `119.1 ± 1.0 mg/dL`.
+  2. Postprandial overbasal peak (`max(G) - G_b`): falls within published cohort mean ± 1 SD (`68 ± 30 mg/dL`, i.e., `[38.0, 98.0] mg/dL` overbasal).
+  3. Postprandial clearance: `G(t)` declines toward baseline after peak without falling into severe hypoglycemia (`G(t) > 60 mg/dL`). 

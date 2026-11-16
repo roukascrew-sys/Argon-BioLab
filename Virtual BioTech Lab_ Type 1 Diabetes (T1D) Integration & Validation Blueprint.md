@@ -275,48 +275,72 @@ State vector: `[Q_sto1, Q_sto2, Q_gut, I_sc1, I_sc2, I_p, X, G]` (integrated via
   - `b = 0.69` (dimensionless, 2014 T1DMS) `[0.50, 0.90]`
   - `c_thresh = 0.17` (dimensionless, 2014 T1DMS) `[0.05, 0.35]`
 
-### 1.2 Subcutaneous Insulin Transit, Graft Secretion & Plasma Glucose Kinetics
-- `dI_sc1/dt = -(k_d + k_a1) * I_sc1 + u(t)`
-- `dI_sc2/dt = k_d * I_sc1 - k_a2 * I_sc2`
-- `dI_p/dt = k_a1 * I_sc1 + k_a2 * I_sc2 - k_e * I_p + (f_viable * graft_fraction * S_graft(t)) / (6.0 * V_I)` (where `S_graft(t)` is in `pmol/kg/min`, converted to `uU/mL/min` via `1 uU/mL = 6.0 pmol/L` and `V_I = 0.050 L/kg` = `50.0 mL/kg`, Dalla Man et al. 2007 Table I & Eq. 7–9)
-- `dX/dt = -p_2 * X + p_3 * (I_p - I_b)`
-- `dG/dt = -(S_G + X) * G + S_G * G_b + Ra_meal(t) / V_G`
-- **Subcutaneous Bolus & Basal Input Scaling (`u(t)` in `uU/mL-eq/min`):**
-  - Literature plasma insulin distribution volume: `V_I = 50.0 mL/kg` (`0.050 L/kg`, Dalla Man et al. 2007 Table I, DOI: 10.1109/TBME.2007.893506).
-  - A subcutaneous bolus of `B_units` (`U`) delivered over `1.0 min` adds `(B_units * 1e6) / (V_I * BW)` `uU/mL-eq/min` to `u(t)` during that minute.
-- **Verified Registry Constants (Dalla Man et al. 2007 Table I, DOI: 10.1109/TBME.2007.893506; Dalla Man et al. 2014 Section 2, DOI: 10.1177/1932296813514502; Visentin et al. 2018 Table 1, PMCID: PMC5851236):**
-  - `k_d = 0.0164 min^-1` `[0.010, 0.025]`
-  - `k_a1 = 0.0018 min^-1` `[0.0005, 0.0050]`
-  - `k_a2 = 0.0182 min^-1` `[0.012, 0.030]`
-  - `k_e = 0.1380 min^-1` `[0.100, 0.200]`
-  - `p_2 = 0.0140 min^-1` `[0.008, 0.022]`
-  - `p_3 = 0.000028 min^-2/(uU/mL)` `[0.00001, 0.00005]`
-  - `S_G = 0.0140 min^-1` `[0.005, 0.030]`
-  - `V_G = 1.49 dL/kg` `[1.20, 1.80]`
-  - `V_I = 50.0 mL/kg` `[35.0, 75.0]` (Dalla Man et al. 2007 Table I `V_I = 0.05 L/kg`)
-  - `G_b = 119.1 mg/dL` `[70.0, 140.0]`
-  - `I_b = 7.0 uU/mL` `[3.0, 15.0]`
-  - `gamma_sec = 0.50 min^-1` `[0.20, 1.00]` (Dalla Man et al. 2007 Table I)
-  - `K_sec = 2.30 pmol/kg/(mg/dL)` `[1.00, 4.00]` (Dalla Man et al. 2007 Table I)
-  - `alpha_sec = 0.050 min^-1` `[0.020, 0.100]` (Dalla Man et al. 2007 Table I)
-  - `beta_sec = 0.110 pmol/kg/min/(mg/dL)` `[0.050, 0.250]` (Dalla Man et al. 2007 Table I)
+### 1.2 Full 13-State Glucose-Insulin ODEs (Dalla Man, Rizza, & Cobelli 2007, Eqs. 1–18 & Table I, DOI: 10.1109/TBME.2007.893506)
+- **Glucose Subsystem (mg/kg and mg/dL):**
+  - `dG_p/dt = EGP(t) + Ra_meal(t) - U_ii(t) - E(t) - k_1 * G_p + k_2 * G_t`
+  - `dG_t/dt = -U_id(t) + k_1 * G_p - k_2 * G_t`
+  - `G(t) = G_p(t) / V_G` (`mg/dL`)
+  - `EGP(t) = max(0, k_p1 - k_p2 * G_p(t) - k_p3 * X_L(t))` (`mg/kg/min`)
+  - `U_ii(t) = F_cns` (`1.0 mg/kg/min`, constant CNS uptake)
+  - `U_id(t) = ((V_m0 + V_mx * X(t)) * G_t(t)) / (K_m0 + G_t(t))` (`mg/kg/min`)
+  - `E(t) = max(0, k_e1 * (G_p(t) - k_e2))` (`mg/kg/min`, renal excretion)
+- **Insulin & Action Subsystem (pmol/kg and pmol/L):**
+  - `dI_sc1/dt = -(k_d + k_a1) * I_sc1 + u_pmol(t)` (`u_pmol(t)` in `pmol/kg/min`; `1 U = 6000 pmol`, divided by `BW`)
+  - `dI_sc2/dt = k_d * I_sc1 - k_a2 * I_sc2`
+  - `Ra_I(t) = k_a1 * I_sc1 + k_a2 * I_sc2` (`pmol/kg/min`)
+  - `dI_p/dt = -(m_2 + m_4) * I_p + m_1 * I_l + Ra_I(t) + f_viable * graft_fraction * S_graft(t)`
+  - `dI_l/dt = m_2 * I_p - (m_1 + m_3_eq) * I_l`, where `m_3_eq = (HE_b * m_1) / (1 - HE_b)`
+  - `I(t) = I_p(t) / V_I` (`pmol/L`; `1 uU/mL = 6.0 pmol/L`)
+  - `dI_delay1/dt = -k_i * (I_delay1 - I(t))`
+  - `dX_L/dt = -k_i * (X_L - I_delay1)` (`pmol/L`, delayed portal/liver insulin action)
+  - `dX/dt = -p_2U * X + p_2U * (I(t) - I_b)` (`pmol/L`, remote interstitial insulin action)
+- **Verified Literature Constants (Dalla Man et al. 2007 Table I, DOI: 10.1109/TBME.2007.893506 & Dalla Man et al. 2014 Section 2, DOI: 10.1177/1932296813514502):**
+  - `V_G = 1.88 dL/kg` (Table I)
+  - `k_1 = 0.065 min^-1` (Table I)
+  - `k_2 = 0.079 min^-1` (Table I)
+  - `V_I = 0.05 L/kg` (Table I)
+  - `m_1 = 0.190 min^-1` (Table I)
+  - `m_2 = 0.484 min^-1` (Table I)
+  - `m_4 = 0.194 min^-1` (Table I)
+  - `HE_b = 0.60` (dimensionless basal hepatic extraction, Table I)
+  - `k_p2 = 0.0021 min^-1` (Table I)
+  - `k_p3 = 0.0090 mg/kg/min per pmol/L` (Table I)
+  - `F_cns = 1.0 mg/kg/min` (Table I)
+  - `V_m0 = 2.50 mg/kg/min` (Table I)
+  - `V_mx = 0.047 mg/kg/min per pmol/L` (Table I)
+  - `K_m0 = 225.59 mg/kg` (Table I)
+  - `p_2U = 0.0331 min^-1` (Table I)
+  - `k_i = 0.0079 min^-1` (Table I)
+  - `k_e1 = 0.0005 min^-1` (Table I)
+  - `k_e2 = 339.0 mg/kg` (Table I)
+  - `k_d = 0.0164 min^-1`, `k_a1 = 0.0018 min^-1`, `k_a2 = 0.0182 min^-1` (2014 Section 2)
+  - `G_b = 119.1 mg/dL` (Visentin et al. 2018 Table 1 adult fasting mean)
+  - `I_b = 42.0 pmol/L` (`7.0 uU/mL * 6.0 pmol/uU`)
+- **Exact Algebraic Fasting Equilibrium Initialization (`t = 0`, zero synthetic rates):**
+  - `G_pb = G_b * V_G` (`223.908 mg/kg`)
+  - `I_pb = I_b * V_I` (`2.10 pmol/kg`)
+  - `I_lb = (m_2 * I_pb) / (m_1 + m_3_eq)`
+  - `G_tb = (F_cns + k_1 * G_pb) / (k_2 + V_m0 / (K_m0 + G_tb_approx))` -> solved quadratically from `k_1 * G_pb - k_2 * G_tb - (V_m0 * G_tb) / (K_m0 + G_tb) = 0`:
+    - `A = k_2`, `B = k_2 * K_m0 + V_m0 - k_1 * G_pb`, `C = -k_1 * G_pb * K_m0`
+    - `G_tb = (-B + sqrt(B^2 - 4 * A * C)) / (2 * A)`
+  - `U_id_b = (V_m0 * G_tb) / (K_m0 + G_tb)`
+  - `k_p1 = F_cns + U_id_b + k_p2 * G_pb + k_p3 * I_b` (ensures `dG_p/dt = 0` at `t = 0` with `Ra_meal = 0` and `E = 0`)
+  - `Ra_I_b = (m_2 + m_4) * I_pb - m_1 * I_lb` (`pmol/kg/min`)
+  - `u_basal_pmol = (Ra_I_b * (k_d + k_a1)) / (k_a1 + k_d)`
+  - `I_sc1(0) = u_basal_pmol / (k_d + k_a1)`, `I_sc2(0) = (k_d * I_sc1(0)) / k_a2`
+  - `I_delay1(0) = I_b`, `X_L(0) = I_b`, `X(0) = 0`
 
-## 3. Hypoimmune Graft Survival & Secretion Coupling (Dalla Man 2007 Eqs. 7–9; Hu et al. 2023 & 2024)
-- **Governing Survival ODE:**
-  - `df_viable/dt = -(k_immune + k_hypoxia) * f_viable`, `f_viable(0) = 1.0` (rates converted to `min^-1` via `/ 1440`).
-- **Dynamic Graft Insulin Secretion (`S_graft(t)` in `pmol/kg/min`, Dalla Man et al. 2007 Eqs. 7–9):**
-  - `dI_po/dt = -gamma_sec * I_po + S_po`, `S_graft(t) = gamma_sec * I_po`
+## 3. Graft Insulin Secretion Adaptation (`ADAPTED_FROM_DALLA_MAN_2007_EQS_7_9`)
+- **Provenance Classification:** `ADAPTED_FROM_DALLA_MAN_2007_EQS_7_9` (Dalla Man et al. 2007 Eqs. 7–9 & Table I, adapted for exogenous T1D islet grafts by setting native basal secretion `S_b = 0` and adding viability scaling `f_viable(t) * graft_fraction` to `dI_p/dt`; note that C-peptide kinetics are not modeled in v1).
+- **Equations:**
+  - `dI_po/dt = -gamma_sec * I_po + S_po`, `S_graft(t) = gamma_sec * I_po` (`pmol/kg/min`)
   - `S_po = Y_sec + (dG/dt > 0 ? K_sec * dG/dt : 0)`
   - `dY_sec/dt = -alpha_sec * (Y_sec - max(0, beta_sec * (G - G_b)))`
-  - `graft_fraction` (`[0.0, 1.0]`): `0.0` in untreated T1D cohort simulations; `> 0` when simulating transplanted beta-cell mass (scaled by `f_viable(t)` into `dI_p/dt`).
-- **Provenance & Parameter Derivation:**
-  - `CD47_min_threshold = 180000 molecules/cell` and `CD47_full_protection = 220000 molecules/cell` (`LITERATURE_TABLE`, Hu et al. 2024, *Nat Biotechnol* 42:413–423, DOI: 10.1038/s41587-023-01784-x).
-  - `k_immune_reject = 0.4605 day^-1` (`DERIVED_FROM_LITERATURE_WINDOW`: `ln(100) / 10 days`, Hu et al. 2023, *Sci Transl Med* 15:eadg5794, DOI: 10.1126/scitranslmed.adg5794, Fig. 2H–I).
-  - Gate rule: If `B2M_knockout && CIITA_knockout && CD47 >= 220000`, `k_immune = 0`; if `CD47 < 180000` or MHC intact, `k_immune = 0.4605 day^-1`; linear interpolation on `[180000, 220000]`.
+  - Constants (Dalla Man et al. 2007 Table I): `gamma_sec = 0.50 min^-1`, `K_sec = 2.30 pmol/kg/(mg/dL)`, `alpha_sec = 0.050 min^-1`, `beta_sec = 0.110 pmol/kg/min/(mg/dL)`.
 
 ## 4. Cohort Validation Benchmark (Visentin et al. 2018 Table 1 & Fig. 4, PMCID: PMC5851236)
-- **Protocol:** `n = 100` adult cohort (`BW = 75.2 kg`, `G_b = 119.1 mg/dL`, `graft_fraction = 0.0`), standard clinical pre-meal bolus at `t = 45 min` (`60 g / CR`, `CR = 16.9 g/U` -> `3.55 U` subcutaneous bolus scaled by literature `V_I = 50.0 mL/kg`) followed by `60 g` (`60,000 mg`) carbohydrate breakfast at `t = 60 min`.
+- **Protocol:** `n = 100` adult cohort (`BW = 75.2 kg`, `G_b = 119.1 mg/dL`, `graft_fraction = 0.0`), `60 g` (`60,000 mg`) carbohydrate breakfast at `t = 60 min` accompanied by optimal bolus at `t = 60 min` (`60 g / CR`, `CR = 16.9 g/U` -> `3.55 U` = `21,300 pmol` subcutaneous bolus).
 - **Acceptance Assertions:**
-  1. Pre-meal fasting baseline (`t = 0..45 min`): `G(t)` remains within `119.1 ± 1.0 mg/dL`.
+  1. 24-hour fasting baseline (`0 g` meal, `0 U` bolus): `G(t)` remains within `119.1 ± 1.0 mg/dL`.
   2. Postprandial overbasal peak (`max(G) - G_b`): falls within published cohort mean ± 1 SD (`68 ± 30 mg/dL`, i.e., `[38.0, 98.0] mg/dL` overbasal).
-  3. Postprandial nadir & recovery: `G(t)` declines toward baseline after peak while staying above the hypoglycemic clamp threshold (`G(t) > 60.0 mg/dL`).
+  3. Postprandial nadir & recovery: `G(t)` declines smoothly toward baseline after peak while staying above the hypoglycemic clamp threshold (`G(t) > 60.0 mg/dL`).

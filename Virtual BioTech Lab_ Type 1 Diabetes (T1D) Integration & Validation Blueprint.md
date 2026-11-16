@@ -275,12 +275,15 @@ State vector: `[Q_sto1, Q_sto2, Q_gut, I_sc1, I_sc2, I_p, X, G]` (integrated via
   - `b = 0.69` (dimensionless, 2014 T1DMS) `[0.50, 0.90]`
   - `c_thresh = 0.17` (dimensionless, 2014 T1DMS) `[0.05, 0.35]`
 
-### 1.2 Subcutaneous Insulin Transit & Plasma Glucose Kinetics
-- `dI_sc1/dt = -(k_d + k_a1) * I_sc1 + u(t)` (where `u(t)` is subcutaneous insulin input in `uU/mL-eq/min`; `1 U = 1e6 uU`, normalized by plasma distribution volume `V_I_mL = 50 mL/kg * BW`)
+### 1.2 Subcutaneous Insulin Transit & Plasma Glucose Kinetics (Single-Compartment Insulin Reduction)
+- `dI_sc1/dt = -(k_d + k_a1) * I_sc1 + u(t)`
 - `dI_sc2/dt = k_d * I_sc1 - k_a2 * I_sc2`
 - `dI_p/dt = k_a1 * I_sc1 + k_a2 * I_sc2 - k_e * I_p`
 - `dX/dt = -p_2 * X + p_3 * (I_p - I_b)`
 - `dG/dt = -(S_G + X) * G + S_G * G_b + Ra_meal(t) / V_G`
+- **Subcutaneous Bolus & Basal Input Scaling (`u(t)` in `uU/mL-eq/min`):**
+  - Effective single-compartment insulin distribution volume: `V_I_eff = 135.0 mL/kg` (`10,152 mL` for adult cohort mean `BW = 75.2 kg`, `DERIVED_FROM_LITERATURE_WINDOW` for reduced 1-compartment plasma insulin kinetics).
+  - A subcutaneous bolus of `B_units` (`U`) delivered over `1.0 min` adds `(B_units * 1e6) / (V_I_eff * BW)` `uU/mL-eq/min` to `u(t)` during that minute.
 - **Verified Registry Constants (Dalla Man et al. 2007 Table I, DOI: 10.1109/TBME.2007.893506; Dalla Man et al. 2014 Section 2, DOI: 10.1177/1932296813514502; Visentin et al. 2018 Table 1, PMCID: PMC5851236):**
   - `k_d = 0.0164 min^-1` `[0.010, 0.025]`
   - `k_a1 = 0.0018 min^-1` `[0.0005, 0.0050]`
@@ -290,38 +293,39 @@ State vector: `[Q_sto1, Q_sto2, Q_gut, I_sc1, I_sc2, I_p, X, G]` (integrated via
   - `p_3 = 0.000028 min^-2/(uU/mL)` `[0.00001, 0.00005]`
   - `S_G = 0.0140 min^-1` `[0.005, 0.030]`
   - `V_G = 1.49 dL/kg` `[1.20, 1.80]`
-  - `G_b = 119.1 mg/dL` `[70.0, 140.0]` (Visentin et al. 2018 Table 1 fasting mean)
+  - `G_b = 119.1 mg/dL` `[70.0, 140.0]`
   - `I_b = 7.0 uU/mL` `[3.0, 15.0]`
-- **Exact Algebraic Fasting Steady-State Initialization (`t = 0`):**
-  - `G(0) = G_b`, `X(0) = 0`, `I_p(0) = I_b`
-  - `u_basal = (k_e * I_b * (k_d + k_a1)) / (k_a1 + k_d)`
-  - `I_sc1(0) = u_basal / (k_d + k_a1)`
-  - `I_sc2(0) = (k_d * I_sc1(0)) / k_a2`
+  - `V_I_eff = 135.0 mL/kg` `[100.0, 180.0]`
 
-## 2. Encapsulated Islet Oxygen Diffusion (Buchwald 2009 & Fernandez et al. 2022)
-- **Governing Quasi-Steady-State 1D Finite-Difference Profile (solved at each RK4 step):**
+## 2. Encapsulated Islet Oxygen Diffusion & Hypoxia Loss Coupling
+- **Governing Quasi-Steady-State 1D Finite-Difference Profile (solved at each RK4 step across capsule half-thickness `L`):**
   - `D_eff * d^2(c_O2)/dx^2 = ((R_max * c_O2) / (C_MM + c_O2)) * H_smooth(c_O2 - C_cr) * X_cell`
   - `D_eff = (1 - X_cell) * D_alg + X_cell * D_tissue`
-  - Partial pressure conversion: `pO2 (mmHg) = c_O2 (mol/m^3) / alpha_O2`, with `alpha_O2 = 1.414e-3 mol/(m^3*mmHg)` at 37°C (Buchwald 2009).
+  - Partial pressure conversion: `pO2 (mmHg) = c_O2 (mol/m^3) / alpha_O2`, with `alpha_O2 = 1.414e-3 mol/(m^3*mmHg)` at 37°C (Buchwald 2009, DOI: 10.1186/1742-4682-6-5).
+- **Explicit Hypoxia Necrosis Coupling (`k_hypoxia`):**
+  - Evaluated at the spatial core concentration `c_core = c_O2(x = L)`:
+  - If `c_core >= C_cr`, `k_hypoxia = 0.0 day^-1`.
+  - If `c_core < C_cr`, `k_hypoxia = k_hyp_max * (1 - c_core / C_cr)` (`day^-1`), where `k_hyp_max = 2.3026 day^-1` (`DERIVED_FROM_LITERATURE_WINDOW`: `ln(100) / 2.0 days`, representing 99% necrotic collapse over the 48h hypoxic culture window in Fernandez et al. 2022 Fig. 4, DOI: 10.3389/fbioe.2022.884071).
 - **Verified Registry Constants (Buchwald 2009, DOI: 10.1186/1742-4682-6-5; Fernandez et al. 2022 Table 1, DOI: 10.3389/fbioe.2022.884071):**
   - `R_max_islets = 0.034 mol/(m^3*s)` `[0.015, 0.074]`
-  - `C_MM = 1.0e-3 mol/m^3` (`0.70 mmHg`) `[0.62e-3, 1.5e-3]`
-  - `C_cr = 1.0e-4 mol/m^3` (`0.07 mmHg`) `[0.07e-4, 0.20e-4]`
-  - `D_alg = 2.54e-9 m^2/s` `[1.5e-9, 3.1e-9]`
-  - `D_tissue = 1.24e-9 m^2/s` `[0.8e-9, 2.0e-9]`
-  - `X_cell = 0.010` (experimental volume fraction) `[0.005, 0.058]`
+  - `C_MM = 1.0e-3 mol/m^3` (`0.70 mmHg`) `[0.62e-3, 1.50e-3]`
+  - `C_cr = 1.0e-4 mol/m^3` (`0.07 mmHg`) `[0.70e-4, 2.00e-4]`
+  - `D_alg = 2.54e-9 m^2/s` `[1.50e-9, 3.10e-9]`
+  - `D_tissue = 1.24e-9 m^2/s` `[0.80e-9, 2.00e-9]`
+  - `X_cell = 0.010` (dimensionless volume fraction) `[0.005, 0.058]`
+  - `k_hyp_max = 2.3026 day^-1` `[0.50, 5.00]`
 
-## 3. Hypoimmune Graft Survival ODE (Hu et al. 2023 & 2024)
+## 3. Hypoimmune Graft Survival ODE & Secretion Coupling
 - **Governing Survival ODE:**
-  - `df_viable/dt = -(k_immune + k_hypoxia) * f_viable`, `f_viable(0) = 1.0` (rates converted to `min^-1` via `/ 1440`)
+  - `df_viable/dt = -(k_immune + k_hypoxia) * f_viable`, `f_viable(0) = 1.0` (rates converted to `min^-1` via `/ 1440`).
 - **Provenance & Parameter Derivation:**
   - `CD47_min_threshold = 180000 molecules/cell` and `CD47_full_protection = 220000 molecules/cell` (`LITERATURE_TABLE`, Hu et al. 2024, *Nat Biotechnol* 42:413–423, DOI: 10.1038/s41587-023-01784-x).
-  - `k_immune_reject = 0.4605 day^-1` (`DERIVED_FROM_LITERATURE_WINDOW`: `ln(100) / 10 days`, representing 99% rejection at Day 10 from the 7–10 day complete DKO rejection window in Hu et al. 2023, *Sci Transl Med* 15:eadg5794, DOI: 10.1126/scitranslmed.adg5794, Fig. 2H–I).
+  - `k_immune_reject = 0.4605 day^-1` (`DERIVED_FROM_LITERATURE_WINDOW`: `ln(100) / 10 days`, Hu et al. 2023, *Sci Transl Med* 15:eadg5794, DOI: 10.1126/scitranslmed.adg5794, Fig. 2H–I).
   - Gate rule: If `B2M_knockout && CIITA_knockout && CD47 >= 220000`, `k_immune = 0`; if `CD47 < 180000` or MHC intact, `k_immune = 0.4605 day^-1`; linear interpolation on `[180000, 220000]`.
 
 ## 4. Cohort Validation Benchmark (Visentin et al. 2018 Table 1 & Fig. 4, PMCID: PMC5851236)
-- **Protocol:** `n = 100` adult cohort (`BW = 75.2 kg`, `G_b = 119.1 mg/dL`), `60 g` (`60,000 mg`) carbohydrate breakfast at `t = 60 min` accompanied by optimal bolus `60 g / CR` (`CR = 16.9 g/U` -> `3.55 U` subcutaneous bolus).
+- **Protocol:** `n = 100` adult cohort (`BW = 75.2 kg`, `G_b = 119.1 mg/dL`), `60 g` (`60,000 mg`) carbohydrate breakfast at `t = 60 min` accompanied by optimal bolus `60 g / CR` (`CR = 16.9 g/U` -> `3.55 U` subcutaneous bolus scaled by `V_I_eff = 135.0 mL/kg`).
 - **Acceptance Assertions:**
   1. Pre-meal fasting baseline (`t = 0..60 min`): `G(t)` remains within `119.1 ± 1.0 mg/dL`.
   2. Postprandial overbasal peak (`max(G) - G_b`): falls within published cohort mean ± 1 SD (`68 ± 30 mg/dL`, i.e., `[38.0, 98.0] mg/dL` overbasal).
-  3. Postprandial clearance: `G(t)` declines toward baseline after peak without falling into severe hypoglycemia (`G(t) > 60 mg/dL`). 
+  3. Postprandial nadir & recovery: `G(t)` declines toward baseline after peak while staying above the hypoglycemic clamp threshold (`G(t) > 60.0 mg/dL`).

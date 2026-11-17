@@ -91,6 +91,11 @@ export function T1DWorkbenchView(controls:HTMLElement,view:HTMLElement) {
   }catch(e){runs=[];charts.forEach(c=>c.destroy());charts=[];timeInput.disabled=true;activeRun.disabled=true;alert.hidden=true;takeaway.hidden=true;staleNotice.hidden=true;summary.style.opacity='';summary.setAttribute('aria-label','Lab readout');renderResults();stale.hidden=true;status.textContent=`Simulation failed: ${e instanceof Error?e.message:String(e)}`;}finally{runButton.disabled=false}},20)});
   secondary.addEventListener('toggle',()=>{if(secondary.open)requestAnimationFrame(()=>charts.forEach(chart=>chart.resize()))});
   exportButton.addEventListener('click',()=>{if(runs.length)downloadBundle(runs)});
-  document.getElementById('runTestsBtn')?.addEventListener('click',()=>{const results=runT1DSuite();const out=document.createElement('p');out.textContent=`T1D suite: ${results.map(r=>`${r.test} ${r.status}`).join('; ')}`;document.getElementById('inspectorBox')?.append(out)});
+  document.getElementById('runTestsBtn')?.addEventListener('click',()=>{
+    if(!document.querySelector('.tab-btn[data-bench="t1d"].active'))return;
+    const results=runT1DSuite(),passed=results.filter(r=>r.status==='PASS').length;
+    const result=results.length>0&&passed===results.length?'PASS':'FAIL';
+    const out=document.getElementById('inspectorBox');if(out){out.setAttribute('role','status');out.textContent=`T1D suite: ${result} (${passed}/${results.length} checks passed)\n${results.map(r=>`${r.status} — ${r.test}`).join('\n')}`;}
+  });
 }
 const controls=document.getElementById('ctrl-t1d'),view=document.getElementById('view-t1d');if(controls&&view)T1DWorkbenchView(controls,view);

@@ -1073,10 +1073,15 @@ function T1DWorkbenchView(controls2, view2) {
     if (runs.length) downloadBundle(runs);
   });
   document.getElementById("runTestsBtn")?.addEventListener("click", () => {
-    const results = runT1DSuite();
-    const out = document.createElement("p");
-    out.textContent = `T1D suite: ${results.map((r) => `${r.test} ${r.status}`).join("; ")}`;
-    document.getElementById("inspectorBox")?.append(out);
+    if (!document.querySelector('.tab-btn[data-bench="t1d"].active')) return;
+    const results = runT1DSuite(), passed = results.filter((r) => r.status === "PASS").length;
+    const result = results.length > 0 && passed === results.length ? "PASS" : "FAIL";
+    const out = document.getElementById("inspectorBox");
+    if (out) {
+      out.setAttribute("role", "status");
+      out.textContent = `T1D suite: ${result} (${passed}/${results.length} checks passed)
+${results.map((r) => `${r.status} \u2014 ${r.test}`).join("\n")}`;
+    }
   });
 }
 var controls = document.getElementById("ctrl-t1d");

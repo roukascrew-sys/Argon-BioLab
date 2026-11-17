@@ -241,11 +241,12 @@
         <button class="tab-btn" data-bench="pkpd">7. Clinical PK/PD</button>
         <button class="tab-btn" data-bench="cart">8. CAR-T &amp; Cytometry</button>
         <button class="tab-btn" data-bench="crispr">9. CRISPR Gene Surgery</button>
+        <button class="tab-btn" data-bench="t1d">10. T1D Workbench</button>
       </div>
     </div>
     <div class="header-actions">
       <button id="runTestsBtn" style="width:auto; padding:5px 10px; border-color:#58a6ff; color:#58a6ff;">
-        ✓ Verify All 11 Modules
+        ✓ Verify All Modules
       </button>
       <span class="status-badge" id="globalStatus">ELN Hash-Chain Verified</span>
     </div>
@@ -594,6 +595,7 @@
         </div>
         <button class="primary" id="runCrisprBtn">Scan 24-Chr Genome &amp; Align Duplex</button>
       </div>
+      <div id="ctrl-t1d" class="bench-ctrl" style="display:none;"></div>
     </div>
 
     <!-- CENTER WORKSPACE -->
@@ -768,6 +770,7 @@
           <div class="metric-card"><div class="label">NHEJ Indel Knockout</div><div class="val" id="crStatNhej">— %</div></div>
         </div>
       </div>
+      <div id="view-t1d" class="bench-view" style="display:none; flex-direction:column; flex:1; gap:12px;"></div>
     </div>
 
     <!-- RIGHT PANEL: ELECTRONIC LAB NOTEBOOK & DATA EXPORT -->
@@ -788,6 +791,7 @@
   </div>
 
   <script type="module" src="./app.js"></script>
+  <script type="module" src="./t1d-workbench.js"></script>
 </body>
 </html>
 <!-- === END OF INDEX.HTML (v12.0) === -->

@@ -224,6 +224,20 @@
       flex: 1;
       min-height: 330px;
     }
+    /* Stack the T1D workspace on small screens without changing other benches. */
+    @media (max-width: 900px) {
+      body:has(.tab-btn[data-bench="t1d"].active) { height: auto; min-height: 100vh; overflow: auto; }
+      body:has(.tab-btn[data-bench="t1d"].active) header { height: auto; min-width: 0; padding: 10px 12px; flex-direction: column; align-items: stretch; gap: 8px; }
+      body:has(.tab-btn[data-bench="t1d"].active) .brand { display: block; min-width: 0; overflow: visible; }
+      body:has(.tab-btn[data-bench="t1d"].active) .brand h1 { margin-bottom: 8px; }
+      body:has(.tab-btn[data-bench="t1d"].active) .nav-tabs { width: 100%; overflow-x: auto; padding-bottom: 3px; }
+      body:has(.tab-btn[data-bench="t1d"].active) .header-actions { justify-content: space-between; flex-wrap: wrap; }
+      body:has(.tab-btn[data-bench="t1d"].active) .layout { display: flex; flex-direction: column; overflow: visible; min-width: 0; }
+      body:has(.tab-btn[data-bench="t1d"].active) .panel { border-right: 0; border-bottom: 1px solid var(--border); overflow: visible; min-width: 0; }
+      body:has(.tab-btn[data-bench="t1d"].active) .workspace-view { height: auto; overflow: visible; min-width: 0; }
+      body:has(.tab-btn[data-bench="t1d"].active) .panel.right { border-left: 0; border-top: 1px solid var(--border); }
+      body:has(.tab-btn[data-bench="t1d"].active) #elnTerminal { max-height: 15rem; }
+    }
   </style>
 </head>
 <body>

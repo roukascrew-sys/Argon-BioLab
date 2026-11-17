@@ -37,15 +37,15 @@ var assumed = (id, symbol, value, unit, doi) => Object.freeze({
   name: id,
   value,
   unit,
-  minBound: value,
-  maxBound: value,
+  minBound: null,
+  maxBound: null,
   sourceCitation: "Project blueprint, user-specified reduced-model assumption; DOI is contextual",
   doi,
   sourceLocation: "Canonical T1D Mathematical Specification, Pass 1",
   provenanceType: "MODEL_ASSUMPTION",
   validityWarning: "Assumption; neither a literature-derived estimate nor a validated physiological bound."
 });
-var T1D_PARAMETER_REGISTRY = Object.freeze({
+var sourceRegistry = Object.freeze({
   adultFastingGlucose: cohort("adult", 119.6, 107.5, 137.8),
   adolescentFastingGlucose: cohort("adolescent", 118.1, 105.7, 142.3),
   childFastingGlucose: cohort("child", 119.8, 104.7, 134.3),
@@ -54,6 +54,7 @@ var T1D_PARAMETER_REGISTRY = Object.freeze({
   oxygenKm: fixed("oxygenKm", "CMM", 1e-3, "mol/m\xB3", buchwald, "10.1186/1742-4682-6-5", "Methods: Oxygen diffusion and consumption"),
   oxygenCritical: fixed("oxygenCritical", "Ccr", 1e-4, "mol/m\xB3", buchwald, "10.1186/1742-4682-6-5", "Methods: Oxygen diffusion and consumption"),
   oxygenSmoothingWidth: fixed("oxygenSmoothingWidth", "epsilon", 5e-5, "mol/m\xB3", buchwald, "10.1186/1742-4682-6-5", "Methods: Oxygen diffusion and consumption"),
+  oxygenHenryCoefficient: Object.freeze({ id: "oxygenHenryCoefficient", symbol: "\u03B1O2", name: "Oxygen solubility coefficient at 37\xB0C", value: 1414e-6, unit: "mol/(m\xB3 mmHg)", minBound: null, maxBound: null, sourceCitation: "Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices", doi: "10.3389/fbioe.2022.884071", sourceLocation: "Table 1: inlet concentration 0.198 mol/m\xB3 at 140 mmHg, Henry conversion for water at 37\xB0C", provenanceType: "MODEL_ASSUMPTION", validityWarning: "Rounded coefficient inferred from rounded table values (0.198 / 140); not an exact reported constant or physiological bound." }),
   insulinKd: fixed("insulinKd", "kd", 0.0164, "min\u207B\xB9", gim, "10.1177/193229680700100303", "Table 1"),
   insulinKa1: fixed("insulinKa1", "ka1", 18e-4, "min\u207B\xB9", gim, "10.1177/193229680700100303", "Table 1"),
   insulinKa2: fixed("insulinKa2", "ka2", 0.0182, "min\u207B\xB9", gim, "10.1177/193229680700100303", "Table 1"),
@@ -91,10 +92,10 @@ var T1D_PARAMETER_REGISTRY = Object.freeze({
   renalKe1: fixed("renalKe1", "ke1", 5e-4, "min\u207B\xB9", meal, "10.1109/TBME.2007.893506", "Table I, renal excretion, normal subjects"),
   renalKe2: fixed("renalKe2", "ke2", 339, "mg/kg", meal, "10.1109/TBME.2007.893506", "Table I, renal excretion, normal subjects"),
   basalInsulinPmol: assumed("basalInsulinPmol", "Ib", 42, "pmol/L", "10.1109/TBME.2007.893506"),
-  graftGamma: fixed("graftGamma", "gamma", 0.5, "min\u207B\xB9", meal, "10.1109/TBME.2007.893506", "Table I, insulin secretion, normal subjects"),
-  graftK: fixed("graftK", "K", 2.3, "pmol/kg per (mg/dL)", meal, "10.1109/TBME.2007.893506", "Table I, insulin secretion, normal subjects"),
-  graftAlpha: fixed("graftAlpha", "alpha", 0.05, "min\u207B\xB9", meal, "10.1109/TBME.2007.893506", "Table I, insulin secretion, normal subjects"),
-  graftBeta: fixed("graftBeta", "beta", 0.11, "pmol/(kg min) per (mg/dL)", meal, "10.1109/TBME.2007.893506", "Table I, insulin secretion, normal subjects"),
+  graftGamma: fixed("graftGamma", "gamma", 0.5, "min\u207B\xB9", meal, "10.1109/TBME.2007.893506", "Table I, insulin secretion, normal subjects; Eqs. 23\u201326 adapted for grafts"),
+  graftK: fixed("graftK", "K", 2.3, "pmol/kg per (mg/dL)", meal, "10.1109/TBME.2007.893506", "Table I, insulin secretion, normal subjects; Eqs. 23\u201326 adapted for grafts"),
+  graftAlpha: fixed("graftAlpha", "alpha", 0.05, "min\u207B\xB9", meal, "10.1109/TBME.2007.893506", "Table I, insulin secretion, normal subjects; Eqs. 23\u201326 adapted for grafts"),
+  graftBeta: fixed("graftBeta", "beta", 0.11, "pmol/(kg min) per (mg/dL)", meal, "10.1109/TBME.2007.893506", "Table I, insulin secretion, normal subjects; Eqs. 23\u201326 adapted for grafts"),
   insulinElimination: assumed("insulinElimination", "ke", 0.138, "min\u207B\xB9", "10.1109/TBME.2007.893506"),
   insulinActionDecay: assumed("insulinActionDecay", "p2", 0.014, "min\u207B\xB9", "10.1109/TBME.2007.893506"),
   insulinActionSensitivity: assumed("insulinActionSensitivity", "p3", 28e-6, "min\u207B\xB2/(\xB5U/mL)", "10.1109/TBME.2007.893506"),
@@ -111,10 +112,74 @@ var T1D_PARAMETER_REGISTRY = Object.freeze({
   oxygenAlginate: fixed("oxygenAlginate", "Dalg", 254e-11, "m\xB2/s", "Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices", "10.3389/fbioe.2022.884071", "Table 1"),
   oxygenIslet: fixed("oxygenIslet", "Dtissue", 124e-11, "m\xB2/s", "Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices", "10.3389/fbioe.2022.884071", "Table 1"),
   cellFraction: fixed("cellFraction", "Xcell", 0.01, "1", "Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices", "10.3389/fbioe.2022.884071", "Table 1"),
-  breakfastGlucose: fixed("breakfastGlucose", "Gb", 119.1, "mg/dL", "Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day", "10.1177/1932296817740834", "Table 1"),
-  breakfastWeight: fixed("breakfastWeight", "BW", 75.2, "kg", "Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day", "10.1177/1932296817740834", "Table 1"),
-  breakfastRatio: fixed("breakfastRatio", "CR", 16.9, "g/U", "Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day", "10.1177/1932296817740834", "Table 1")
+  breakfastGlucose: fixed("breakfastGlucose", "Gb", 119.1, "mg/dL", "Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day", "10.1177/1932296818757747", "Table 1"),
+  breakfastWeight: fixed("breakfastWeight", "BW", 75.2, "kg", "Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day", "10.1177/1932296818757747", "Table 1"),
+  breakfastRatio: fixed("breakfastRatio", "CR", 16.9, "g/U", "Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day", "10.1177/1932296818757747", "Table 1")
 });
+var allScenarios = ["fasting", "meal", "graft"];
+var mealScenarios = ["meal", "graft"];
+var graftScenarios = ["graft"];
+var activeKeys = {
+  adultFastingGlucose: allScenarios,
+  vgNormal: allScenarios,
+  glucoseK1: allScenarios,
+  glucoseK2: allScenarios,
+  insulinVolume: allScenarios,
+  insulinM1: allScenarios,
+  insulinM2: allScenarios,
+  insulinM4: allScenarios,
+  hepaticExtraction: allScenarios,
+  productionKp2: allScenarios,
+  productionKp3: allScenarios,
+  brainUptake: allScenarios,
+  utilizationVm0: allScenarios,
+  utilizationVmx: allScenarios,
+  utilizationKm0: allScenarios,
+  actionP2u: allScenarios,
+  insulinDelay: allScenarios,
+  renalKe1: allScenarios,
+  renalKe2: allScenarios,
+  insulinKd: allScenarios,
+  insulinKa1: allScenarios,
+  insulinKa2: allScenarios,
+  basalInsulinPmol: allScenarios,
+  sensorDelay: allScenarios,
+  mealKgri: allScenarios,
+  mealKmin: allScenarios,
+  mealKmax: allScenarios,
+  mealKabs: allScenarios,
+  mealFraction: allScenarios,
+  modelMealB: allScenarios,
+  modelMealC: allScenarios,
+  mealReferenceDose: allScenarios,
+  breakfastWeight: allScenarios,
+  breakfastRatio: mealScenarios,
+  oxygenAlginate: graftScenarios,
+  oxygenIslet: graftScenarios,
+  oxygenMaxConsumption: graftScenarios,
+  oxygenKm: graftScenarios,
+  oxygenCritical: graftScenarios,
+  oxygenSmoothingWidth: graftScenarios,
+  oxygenHenryCoefficient: graftScenarios,
+  cellFraction: graftScenarios,
+  cd47Lower: graftScenarios,
+  cd47Upper: graftScenarios,
+  immuneReject: graftScenarios,
+  hypoxiaMax: graftScenarios,
+  graftGamma: graftScenarios,
+  graftK: graftScenarios,
+  graftAlpha: graftScenarios,
+  graftBeta: graftScenarios
+};
+var T1D_PARAMETER_REGISTRY = Object.freeze(Object.fromEntries(
+  Object.entries(sourceRegistry).map(([key, parameter]) => {
+    const scenarios = Object.freeze([...activeKeys[key] ?? []]);
+    return [key, Object.freeze({ ...parameter, usageType: scenarios.length ? "ACTIVE_IN_SOLVER" : "CONTEXTUAL_BENCHMARK", activeScenarios: scenarios })];
+  })
+));
+function isParameterActive(key, scenario) {
+  return T1D_PARAMETER_REGISTRY[key].activeScenarios.includes(scenario);
+}
 function validateParameterValue(parameter, value) {
   if (!Number.isFinite(value) || parameter.minBound !== null && value < parameter.minBound || parameter.maxBound !== null && value > parameter.maxBound) {
     throw new RangeError(`OUT_OF_VALIDATED_COHORT_BOUNDS: ${parameter.id}`);
@@ -278,34 +343,45 @@ function publishedModelStep(t, state, dt, p, meal2, kp1, inputs, coupling) {
 }
 
 // src/modules/t1d/utils/simulation.ts
-function simulate(scenario, basalGlucose, protectedGraft = true) {
+function simulate(scenario, basalGlucose, options = true) {
   validateParameterValue(T1D_PARAMETER_REGISTRY.adultFastingGlucose, basalGlucose);
+  if (typeof options !== "boolean" && (![15, 76, 140].includes(options.oxygenMmHg) || ![0, 2e5, 6e5].includes(options.cd47) || typeof options.basalEnabled !== "boolean")) throw new RangeError("Unsupported scenario controls");
   const params = { ...publishedModelParameters(), Gb: basalGlucose }, init = initializePublishedModel(params), dt = 0.1;
   const meal2 = { kgri: T1D_PARAMETER_REGISTRY.mealKgri.value, kmin: T1D_PARAMETER_REGISTRY.mealKmin.value, kmax: T1D_PARAMETER_REGISTRY.mealKmax.value, kabs: T1D_PARAMETER_REGISTRY.mealKabs.value, fraction: T1D_PARAMETER_REGISTRY.mealFraction.value, b: T1D_PARAMETER_REGISTRY.modelMealB.value, d: T1D_PARAMETER_REGISTRY.modelMealC.value, dose: T1D_PARAMETER_REGISTRY.mealReferenceDose.value, bodyWeight: T1D_PARAMETER_REGISTRY.breakfastWeight.value };
   const cellFraction = T1D_PARAMETER_REGISTRY.cellFraction.value, graftActive = scenario === "graft";
-  const boundary = protectedGraft ? 0.2 : 0, oxygen = { diffusion: (1 - cellFraction) * T1D_PARAMETER_REGISTRY.oxygenAlginate.value + cellFraction * T1D_PARAMETER_REGISTRY.oxygenIslet.value, rmax: T1D_PARAMETER_REGISTRY.oxygenMaxConsumption.value, km: T1D_PARAMETER_REGISTRY.oxygenKm.value, critical: T1D_PARAMETER_REGISTRY.oxygenCritical.value, smoothingWidth: T1D_PARAMETER_REGISTRY.oxygenSmoothingWidth.value, dx: 1e-4, boundary };
-  const coupling = graftActive ? { oxygen, points: 4, cellFraction, cd47: protectedGraft ? T1D_PARAMETER_REGISTRY.cd47Upper.value : 0, b2mKnockout: true, ciitaKnockout: true, cd47Low: T1D_PARAMETER_REGISTRY.cd47Lower.value, cd47High: T1D_PARAMETER_REGISTRY.cd47Upper.value, immuneMax: T1D_PARAMETER_REGISTRY.immuneReject.value, hypoxiaMax: T1D_PARAMETER_REGISTRY.hypoxiaMax.value, graft: { fraction: 1, gamma: T1D_PARAMETER_REGISTRY.graftGamma.value, K: T1D_PARAMETER_REGISTRY.graftK.value, alpha: T1D_PARAMETER_REGISTRY.graftAlpha.value, beta: T1D_PARAMETER_REGISTRY.graftBeta.value, insulinVolumeLitresPerKg: params.VI } } : void 0;
+  const legacy = typeof options === "boolean";
+  const boundary = legacy ? options ? 0.2 : 0 : options.oxygenMmHg * T1D_PARAMETER_REGISTRY.oxygenHenryCoefficient.value;
+  const cd47 = legacy ? options ? T1D_PARAMETER_REGISTRY.cd47Upper.value : 0 : options.cd47, basalEnabled = legacy || options.basalEnabled;
+  const oxygen = { diffusion: (1 - cellFraction) * T1D_PARAMETER_REGISTRY.oxygenAlginate.value + cellFraction * T1D_PARAMETER_REGISTRY.oxygenIslet.value, rmax: T1D_PARAMETER_REGISTRY.oxygenMaxConsumption.value, km: T1D_PARAMETER_REGISTRY.oxygenKm.value, critical: T1D_PARAMETER_REGISTRY.oxygenCritical.value, smoothingWidth: T1D_PARAMETER_REGISTRY.oxygenSmoothingWidth.value, dx: 1e-4, boundary };
+  const coupling = graftActive ? { oxygen, points: 4, cellFraction, cd47, b2mKnockout: true, ciitaKnockout: true, cd47Low: T1D_PARAMETER_REGISTRY.cd47Lower.value, cd47High: T1D_PARAMETER_REGISTRY.cd47Upper.value, immuneMax: T1D_PARAMETER_REGISTRY.immuneReject.value, hypoxiaMax: T1D_PARAMETER_REGISTRY.hypoxiaMax.value, graft: { fraction: 1, gamma: T1D_PARAMETER_REGISTRY.graftGamma.value, K: T1D_PARAMETER_REGISTRY.graftK.value, alpha: T1D_PARAMETER_REGISTRY.graftAlpha.value, beta: T1D_PARAMETER_REGISTRY.graftBeta.value, insulinVolumeLitresPerKg: params.VI } } : void 0;
   const core = graftActive ? steadyOxygenProfile(oxygen, 4, cellFraction)[0] : NaN;
   const hypoxia = graftActive && core < oxygen.critical ? T1D_PARAMETER_REGISTRY.hypoxiaMax.value * (1 - core / oxygen.critical) : 0;
-  const immune = graftActive && !protectedGraft ? T1D_PARAMETER_REGISTRY.immuneReject.value : 0;
+  const immune = graftActive ? T1D_PARAMETER_REGISTRY.immuneReject.value * (1 - Math.max(0, Math.min(1, (cd47 - T1D_PARAMETER_REGISTRY.cd47Lower.value) / (T1D_PARAMETER_REGISTRY.cd47Upper.value - T1D_PARAMETER_REGISTRY.cd47Lower.value)))) : 0;
   let state = graftActive ? [...init.state, 0, 0, 1] : [...init.state];
   const initialState = [...state], frames = [];
   const capture = (time) => {
-    const [q1, q2, qgut, Gp, Gt, Gs, sc1, sc2, Ip, , , XL, X] = state;
+    const [q1, q2, qgut, Gp, Gt, Gs, sc1, sc2, Ip, Il, , XL, X] = state;
     const rate = mealDerivative({ sto1: q1, sto2: q2, gut: qgut }, meal2, 0);
+    const raw = graftActive ? coupling.graft.gamma * state[13] : 0;
+    const effective = graftActive ? state[15] * coupling.graft.fraction * raw : 0;
+    const loss = (params.m2 + params.m4) * Ip, liver = params.m1 * Il, absorption = params.ka1 * sc1 + params.ka2 * sc2;
     frames.push({
       time,
       state: [...state],
       glucose: Gp / params.VG,
       sensor: Gs / params.VG,
       insulin: Ip / params.VI,
-      oxygen: graftActive ? core / 1414e-6 : NaN,
+      oxygen: graftActive ? core / T1D_PARAMETER_REGISTRY.oxygenHenryCoefficient.value : NaN,
       viability: graftActive ? state[15] : NaN,
       EGP: Math.max(0, init.kp1 - params.kp2 * Gp - params.kp3 * XL),
       Ra_meal: rate.appearance,
       U_id: (params.Vm0 + params.Vmx * X) * Gt / (params.Km0 + Gt),
-      Ra_I: params.ka1 * sc1 + params.ka2 * sc2,
-      S_graft: graftActive ? state[15] * T1D_PARAMETER_REGISTRY.graftGamma.value * state[13] : 0,
+      Ra_I: absorption,
+      S_graft_raw: raw,
+      S_graft_effective: effective,
+      I_plasma_loss: loss,
+      I_liver_input: liver,
+      dI_p: -loss + liver + absorption + effective,
       k_immune: immune,
       k_hypoxia: hypoxia
     });
@@ -314,21 +390,58 @@ function simulate(scenario, basalGlucose, protectedGraft = true) {
   for (let i = 0; i < 14400; i++) {
     const t = i * dt, active = scenario !== "fasting", ingestion = active && i >= 600 && i < 750 ? 4e3 : 0;
     const bolus = active && i >= 600 && i < 610 ? 60 / T1D_PARAMETER_REGISTRY.breakfastRatio.value * 6e3 / meal2.bodyWeight : 0;
-    state = publishedModelStep(t, state, dt, params, meal2, init.kp1, () => ({ ingestion, infusion: init.basal + bolus }), coupling);
+    state = publishedModelStep(t, state, dt, params, meal2, init.kp1, () => ({ ingestion, infusion: (basalEnabled ? init.basal : 0) + bolus }), coupling);
     capture((i + 1) * dt);
   }
-  return { scenario, label: scenario === "graft" ? protectedGraft ? "Normoxic HIP graft" : "Hypoxic / unprotected graft" : scenario === "meal" ? "60 g meal + bolus" : "Untreated fasting", dt, initialState, params, meal: meal2, kp1: init.kp1, basal: init.basal, coupling, protocol: { mealMg: scenario === "fasting" ? 0 : 6e4, mealStartMin: 60, mealDurationMin: 15, bolusUnits: scenario === "fasting" ? 0 : 60 / T1D_PARAMETER_REGISTRY.breakfastRatio.value, bolusStartMin: 60, bolusDurationMin: 1, durationMin: 1440 }, boundaryAssumptions: "4-point slab; dx 0.0001 m; boundary 0.2 or 0 mol/m\xB3; Henry coefficient 0.001414 mol/(m\xB3 mmHg).", frames };
+  const label = scenario === "graft" ? legacy ? options ? "Normoxic HIP graft" : "Hypoxic / unprotected graft" : `Graft \xB7 ${options.oxygenMmHg} mmHg \xB7 CD47 ${cd47.toLocaleString()} \xB7 ${basalEnabled ? "basal maintained" : "basal off"}` : scenario === "meal" ? "60 g meal + bolus" : "Fasting baseline (basal insulin maintained)";
+  return { scenario, label, dt, initialState, params, meal: meal2, kp1: init.kp1, basal: basalEnabled ? init.basal : 0, coupling, protocol: { mealMg: scenario === "fasting" ? 0 : 6e4, mealStartMin: 60, mealDurationMin: 15, bolusUnits: scenario === "fasting" ? 0 : 60 / T1D_PARAMETER_REGISTRY.breakfastRatio.value, bolusStartMin: 60, bolusDurationMin: 1, durationMin: 1440 }, boundaryAssumptions: `4-point slab; dx 0.0001 m; surface oxygen ${boundary} mol/m\xB3; Henry coefficient ${T1D_PARAMETER_REGISTRY.oxygenHenryCoefficient.value} mol/(m\xB3 mmHg); initial SC depots at fasting equilibrium even if basal is switched off at t=0.`, frames };
 }
 
 // src/modules/t1d/utils/reproducibilityExporter.ts
 var ODE_COMMIT = "a81e7f3aeeba17b6b5920e5fda2563bfe05a0856";
 var stateNames = ["Q_sto1", "Q_sto2", "Q_gut", "G_p", "G_t", "G_s", "I_sc1", "I_sc2", "I_p", "I_l", "I_delay1", "X_L", "X", "I_po", "Y_sec", "f_viable"];
+var unitDictionary = Object.freeze({
+  scenario: "label",
+  time_min: "min",
+  Q_sto1: "mg",
+  Q_sto2: "mg",
+  Q_gut: "mg",
+  G_p: "mg/kg",
+  G_t: "mg/kg",
+  G_s: "mg/kg",
+  I_sc1: "pmol/kg",
+  I_sc2: "pmol/kg",
+  I_p: "pmol/kg",
+  I_l: "pmol/kg",
+  I_delay1: "pmol/L",
+  X_L: "pmol/L",
+  X: "pmol/L",
+  I_po: "pmol/kg",
+  Y_sec: "pmol/(kg min)",
+  f_viable: "dimensionless fraction",
+  glucose_mg_dL: "mg/dL",
+  sensor_mg_dL: "mg/dL",
+  insulin_pmol_L: "pmol/L",
+  oxygen_mmHg: "mmHg",
+  viability: "dimensionless fraction",
+  EGP: "mg/(kg min)",
+  Ra_meal: "mg/(kg min)",
+  U_id: "mg/(kg min)",
+  Ra_I: "pmol/(kg min)",
+  S_graft_raw: "pmol/(kg min)",
+  S_graft_effective: "pmol/(kg min)",
+  I_plasma_loss: "pmol/(kg min)",
+  I_liver_input: "pmol/(kg min)",
+  dI_p: "pmol/(kg min)",
+  k_immune: "day\u207B\xB9",
+  k_hypoxia: "day\u207B\xB9"
+});
 function makeBundle(runs) {
-  const manifest = { odeCommit: ODE_COMMIT, dtMinutes: 0.1, parameterProvenance: T1D_PARAMETER_REGISTRY, runs: runs.map(({ frames, ...run }) => run), stateNames };
-  const cols = ["scenario", "time_min", ...stateNames, "glucose_mg_dL", "sensor_mg_dL", "insulin_pmol_L", "oxygen_mmHg", "viability", "EGP", "Ra_meal", "U_id", "Ra_I", "S_graft", "k_immune", "k_hypoxia"];
-  const rows = [cols.join(",")];
+  const manifest = { odeCommit: ODE_COMMIT, dtMinutes: 0.1, parameterProvenance: T1D_PARAMETER_REGISTRY, runs: runs.map(({ frames, ...run }) => run), stateNames, unitDictionary, csvUnitsRow: "The second row maps each column to its unit; skip it when loading numeric rows." };
+  const cols = ["scenario", "time_min", ...stateNames, "glucose_mg_dL", "sensor_mg_dL", "insulin_pmol_L", "oxygen_mmHg", "viability", "EGP", "Ra_meal", "U_id", "Ra_I", "S_graft_raw", "S_graft_effective", "I_plasma_loss", "I_liver_input", "dI_p", "k_immune", "k_hypoxia"];
   const cell = (x) => typeof x === "number" && !Number.isFinite(x) ? "" : typeof x === "string" ? `"${x.replaceAll('"', '""')}"` : x === void 0 ? "" : String(x);
-  for (const run of runs) for (const f of run.frames) rows.push([run.label, f.time, ...stateNames.map((_, i) => f.state[i]), f.glucose, f.sensor, f.insulin, f.oxygen, f.viability, f.EGP, f.Ra_meal, f.U_id, f.Ra_I, f.S_graft, f.k_immune, f.k_hypoxia].map(cell).join(","));
+  const rows = [cols.join(","), cols.map((c, i) => cell(i === 0 ? "unitDictionary" : unitDictionary[c])).join(",")];
+  for (const run of runs) for (const f of run.frames) rows.push([run.label, f.time, ...stateNames.map((_, i) => f.state[i]), f.glucose, f.sensor, f.insulin, f.oxygen, f.viability, f.EGP, f.Ra_meal, f.U_id, f.Ra_I, f.S_graft_raw, f.S_graft_effective, f.I_plasma_loss, f.I_liver_input, f.dI_p, f.k_immune, f.k_hypoxia].map(cell).join(","));
   return { json: JSON.stringify(manifest, null, 2), csv: rows.join("\n") + "\n" };
 }
 function download(name, contents, type) {
@@ -348,7 +461,7 @@ function downloadBundle(runs) {
 }
 
 // src/modules/t1d/components/GlassBoxInspectorDrawer.tsx
-var equations = { glucose: "dGp/dt = EGP + Ra_meal \u2212 Fcns \u2212 E \u2212 k1\xB7Gp + k2\xB7Gt; G = Gp/VG", sensor: "dGs/dt = (Gp \u2212 Gs)/Td; G_sensor = Gs/VG", insulin: "dIp/dt = \u2212(m2 + m4)\xB7Ip + m1\xB7Il + Ra_I + f_viable\xB7graft_fraction\xB7S_graft; I = Ip/VI", oxygen: "D_eff\xB7d\xB2c/dx\xB2 = Rmax\xB7c/(Km+c)\xB7H_smooth(c\u2212Ccr)\xB7Xcell; pO\u2082 = c/\u03B1", viability: "df_viable/dt = \u2212(k_immune + k_hypoxia)\xB7f_viable/1440" };
+var equations = { glucose: "dGp/dt = EGP + Ra_meal \u2212 Fcns \u2212 E \u2212 k1\xB7Gp + k2\xB7Gt; G = Gp/VG", sensor: "dGs/dt = (Gp \u2212 Gs)/Td; G_sensor = Gs/VG", insulin: "dIp/dt = \u2212(m2 + m4)\xB7Ip + m1\xB7Il + Ra_I + S_graft_effective; S_graft_effective = f_viable \xB7 graft_fraction \xB7 S_graft_raw; S_graft_raw = \u03B3 \xB7 I_po; I = Ip/VI", oxygen: "D_eff\xB7d\xB2c/dx\xB2 = Rmax\xB7c/(Km+c)\xB7H_smooth(c\u2212Ccr)\xB7Xcell; pO\u2082 = c/\u03B1", viability: "df_viable/dt = \u2212(k_immune + k_hypoxia)\xB7f_viable/1440" };
 function GlassBoxInspectorDrawer(host) {
   host.className = "card";
   host.setAttribute("aria-live", "polite");
@@ -361,7 +474,6 @@ function GlassBoxInspectorDrawer(host) {
     host.style.display = "none";
   });
   const body = document.createElement("div");
-  body.textContent = "Select a plotted point or equation to inspect its state and fluxes.";
   host.replaceChildren(title, close, body);
   return { show(run, frame, curve) {
     host.style.display = "block";
@@ -373,15 +485,26 @@ function GlassBoxInspectorDrawer(host) {
     };
     add("strong", `${run.label} \xB7 ${frame.time.toFixed(1)} min`);
     add("p", equations[curve] ?? equations.glucose);
-    for (const key of ["EGP", "Ra_meal", "U_id", "Ra_I", "S_graft", "k_immune", "k_hypoxia"]) add("p", `${key}: ${frame[key].toPrecision(6)} ${key.startsWith("k_") ? "day\u207B\xB9" : key === "Ra_I" || key === "S_graft" ? "pmol/kg/min" : "mg/kg/min"}`);
+    add("p", `Run fasting glucose: ${run.params.Gb} mg/dL${run.coupling ? ` \xB7 CD47: ${run.coupling.cd47} molecules/cell` : ""}`);
+    for (const key of ["EGP", "Ra_meal", "U_id", "Ra_I", "S_graft_raw", "S_graft_effective", "I_plasma_loss", "I_liver_input", "dI_p", "k_immune", "k_hypoxia"]) add("p", `${key}: ${frame[key].toPrecision(10)} ${key.startsWith("k_") ? "day\u207B\xB9" : key === "Ra_I" || key.startsWith("S_graft") || key.startsWith("I_") || key === "dI_p" ? "pmol/kg/min" : "mg/kg/min"}`);
     add("p", `State vector: ${frame.state.map((x) => x.toPrecision(6)).join(", ")}`);
     const details = document.createElement("details");
     const summary = document.createElement("summary");
     summary.textContent = "Full parameter provenance";
     details.append(summary);
     for (const [key, p] of Object.entries(T1D_PARAMETER_REGISTRY)) {
-      const el = document.createElement("p");
-      el.textContent = `${key}: ${p.value} ${p.unit} \xB7 ${p.provenanceType} \xB7 ${p.sourceCitation} \xB7 DOI ${p.doi} \xB7 ${p.sourceLocation}`;
+      const active = isParameterActive(key, run.scenario);
+      const el = document.createElement("p"), badge = document.createElement("span");
+      badge.className = "t1d-badge";
+      badge.dataset.active = String(active);
+      badge.textContent = `${p.provenanceType} \xB7 ${active ? "ACTIVE_IN_SOLVER" : "CONTEXTUAL_BENCHMARK"}`;
+      el.append(document.createTextNode(`${key}: ${p.value} ${p.unit}${key === "adultFastingGlucose" ? ` (run: ${run.params.Gb} ${p.unit})` : ""} `), badge, document.createTextNode(` \xB7 ${p.sourceCitation} \xB7 `));
+      const a = document.createElement("a");
+      a.href = `https://doi.org/${p.doi}`;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = p.doi;
+      el.append(a, document.createTextNode(` \xB7 ${p.sourceLocation}. ${p.validityWarning}`));
       details.append(el);
     }
     body.append(details);
@@ -401,8 +524,12 @@ function runT1DSuite() {
   try {
     const p = publishedModelParameters(), init = initializePublishedModel(p);
     const m = { kgri: T1D_PARAMETER_REGISTRY.mealKgri.value, kmin: T1D_PARAMETER_REGISTRY.mealKmin.value, kmax: T1D_PARAMETER_REGISTRY.mealKmax.value, kabs: T1D_PARAMETER_REGISTRY.mealKabs.value, fraction: T1D_PARAMETER_REGISTRY.mealFraction.value, b: T1D_PARAMETER_REGISTRY.modelMealB.value, d: T1D_PARAMETER_REGISTRY.modelMealC.value, dose: T1D_PARAMETER_REGISTRY.mealReferenceDose.value, bodyWeight: T1D_PARAMETER_REGISTRY.breakfastWeight.value };
-    const next = publishedModelStep(0, init.state, 0.1, p, m, init.kp1, () => ({ ingestion: 0, infusion: init.basal }));
-    return [{ test: "T1D fasting equilibrium", status: Math.abs(next[3] / p.VG - p.Gb) < 1e-8 ? "PASS" : "FAIL" }, { test: "T1D registry provenance", status: Object.values(T1D_PARAMETER_REGISTRY).every((x) => x.doi && x.sourceLocation && x.unit) ? "PASS" : "FAIL" }];
+    let state = init.state, maxDrift = 0;
+    for (let i = 0; i < 14400; i++) {
+      state = publishedModelStep(i * 0.1, state, 0.1, p, m, init.kp1, () => ({ ingestion: 0, infusion: init.basal }));
+      maxDrift = Math.max(maxDrift, Math.abs(state[3] / p.VG - p.Gb), Math.abs(state[5] / p.VG - p.Gb));
+    }
+    return [{ test: `T1D 24 h fasting equilibrium (max drift ${maxDrift.toPrecision(3)} mg/dL)`, status: Number.isFinite(maxDrift) && maxDrift <= 1 ? "PASS" : "FAIL" }, { test: "T1D provenance metadata present", status: Object.values(T1D_PARAMETER_REGISTRY).every((x) => x.doi && x.sourceLocation && x.unit) ? "PASS" : "FAIL" }];
   } catch (e) {
     return [{ test: `T1D suite: ${e instanceof Error ? e.message : String(e)}`, status: "FAIL" }];
   }
@@ -411,25 +538,45 @@ function runT1DSuite() {
 // src/modules/t1d/components/T1DWorkbenchView.tsx
 function T1DWorkbenchView(controls2, view2) {
   const p = T1D_PARAMETER_REGISTRY.adultFastingGlucose;
-  controls2.innerHTML = `<h2>Type 1 Diabetes Workbench</h2><div class="control-group"><label for="t1dScenario">Scenario</label><select id="t1dScenario"><option value="fasting">Untreated T1D fasting</option><option value="meal">60 g meal + bolus</option><option value="graft">Normoxic HIP vs hypoxic / unprotected graft</option></select></div><div class="control-group"><label for="t1dGb">Adult fasting glucose <span id="t1dGbLabel" class="val-display"></span></label><input id="t1dGb" type="range" min="${p.minBound}" max="${p.maxBound}" step="0.1" value="${p.value}"><small>Adult cohort range (mg/dL); adjusts model baseline.</small></div><button class="primary" id="t1dRun">Run simulation</button><button id="t1dExport" disabled>Download reproducibility bundle</button><p id="t1dStatus" role="status">Choose a scenario, then run.</p><details><summary>Parameter provenance</summary><div id="t1dParameters"></div></details>`;
+  controls2.innerHTML = `<h2>Type 1 Diabetes Workbench</h2>
+  <div class="control-group"><label for="t1dScenario">Scenario</label><select id="t1dScenario"><option value="fasting">Fasting Baseline (Basal Insulin Maintained)</option><option value="meal">60 g Meal + Bolus</option><option value="graft">Graft: oxygen and CD47 settings</option><option value="basal-compare">HIP Graft + Full Basal vs HIP Graft (Basal-Off)</option></select></div>
+  <div class="control-group"><label for="t1dOxygen">Capsule surface oxygen</label><select id="t1dOxygen"><option value="140">140 mmHg \xB7 normoxic</option><option value="76">76 mmHg \xB7 arterial</option><option value="15">15 mmHg \xB7 hypoxic</option></select></div>
+  <div class="control-group"><label for="t1dCd47">CD47 protection</label><select id="t1dCd47"><option value="600000">600,000 molecules/cell \xB7 HIP</option><option value="200000">200,000 molecules/cell \xB7 threshold</option><option value="0">0 molecules/cell \xB7 DKO</option></select><small>Basal comparison fixes CD47 at HIP; oxygen remains selectable. Basal-off stops infusion at time zero, retaining the initial insulin already in the modeled depots.</small></div>
+  <div class="control-group"><label for="t1dGb">Adult fasting glucose <span id="t1dGbLabel" class="val-display"></span></label><input id="t1dGb" type="range" min="${p.minBound}" max="${p.maxBound}" step="0.1" value="${p.value}"><small>Adult cohort range (mg/dL); adjusts model baseline.</small></div><button class="primary" id="t1dRun">Run simulation</button><button id="t1dExport" disabled>Download reproducibility bundle</button><p id="t1dStatus" role="status">Choose a scenario, then run.</p><details><summary>Parameter provenance</summary><div id="t1dParameters"></div></details>`;
   const panel = controls2.querySelector("#t1dParameters");
   for (const [key, param] of Object.entries(T1D_PARAMETER_REGISTRY)) {
     const d = document.createElement("div");
     d.className = "control-group";
     const title = document.createElement("strong");
-    title.textContent = `${key}: ${param.value} ${param.unit} \xB7 ${param.provenanceType}`;
+    title.textContent = `${key}: ${param.value} ${param.unit} `;
+    const badge = document.createElement("span");
+    badge.className = "t1d-badge";
+    badge.textContent = `${param.provenanceType} \xB7 ${param.usageType}`;
+    badge.dataset.parameter = key;
     const detail = document.createElement("p");
-    detail.textContent = `${param.sourceCitation} \xB7 DOI ${param.doi} \xB7 ${param.sourceLocation}. ${param.validityWarning} ${param.minBound === null || param.maxBound === null ? "No verified slider range; read only." : `Bounds ${param.minBound}\u2013${param.maxBound}.`}`;
-    d.append(title, detail);
+    detail.append(document.createTextNode(`${param.sourceCitation} \xB7 DOI `));
+    const doi = document.createElement("a");
+    doi.href = `https://doi.org/${param.doi}`;
+    doi.target = "_blank";
+    doi.rel = "noopener noreferrer";
+    doi.textContent = param.doi;
+    detail.append(doi, document.createTextNode(` \xB7 ${param.sourceLocation}. ${param.validityWarning} ${param.minBound === null || param.maxBound === null ? "No verified slider range; read only." : `Bounds ${param.minBound}\u2013${param.maxBound}.`}`));
+    d.append(title, badge, detail);
     panel.append(d);
   }
   view2.style.gap = "12px";
+  const style = document.createElement("style");
+  style.textContent = `.t1d-badge{display:inline-block;border:1px solid #5276a1;border-radius:10px;padding:2px 6px;color:#b6d6ff;background:#20324a;font-size:.65rem}.t1d-badge[data-active="true"]{border-color:#3fb950;color:#adf3bb;background:#173621}.t1d-badge[data-active="false"]{opacity:.7}#view-t1d a,#ctrl-t1d a{color:#79c0ff}.t1d-threshold{border:1px solid #f0a64b;color:#ffe2ad;background:#493116;padding:8px;border-radius:6px}.t1d-stale{position:absolute;inset:0;z-index:2;background:rgba(11,15,23,.88);display:grid;place-items:center;text-align:center;font-weight:bold;color:#fff;pointer-events:auto}.t1d-stale[hidden]{display:none}`;
   const intro = document.createElement("div");
-  intro.innerHTML = "<h2>T1D Simulation</h2><p>Select a plotted point or equation to inspect it. Insulin is shown in pmol/L; oxygen and viability appear for graft scenarios.</p>";
+  intro.innerHTML = "<h2>T1D Simulation</h2><p>Select a plotted point or equation to inspect it. Oxygen choices specify capsule surface tension, not the oxygen at the core.</p>";
+  const alert = document.createElement("div");
+  alert.setAttribute("role", "status");
+  alert.hidden = true;
   const timeline = document.createElement("div");
   timeline.className = "card";
-  timeline.innerHTML = '<label for="t1dTime">Inspect timestamp (minutes) <span id="t1dTimeValue" class="val-display">0</span></label><input id="t1dTime" type="range" min="0" max="1440" step="0.1" value="0" disabled>';
+  timeline.innerHTML = '<label for="t1dActiveRun">Inspect comparison run</label><select id="t1dActiveRun" disabled></select><label for="t1dTime">Inspect timestamp (minutes) <span id="t1dTimeValue" class="val-display">0</span></label><input id="t1dTime" type="range" min="0" max="1440" step="0.1" value="0" disabled>';
   const plotContainer = document.createElement("div");
+  plotContainer.style.position = "relative";
   const plots = [];
   const formulas = document.createElement("div");
   formulas.className = "btn-row";
@@ -437,42 +584,76 @@ function T1DWorkbenchView(controls2, view2) {
     const card = document.createElement("section");
     card.className = "card";
     card.style.height = "250px";
-    card.innerHTML = `<h2>${label}</h2>`;
+    const h = document.createElement("h2");
+    h.textContent = label;
     const wrapper = document.createElement("div");
     wrapper.style.height = "190px";
     const c = document.createElement("canvas");
     c.setAttribute("aria-label", label);
     c.setAttribute("role", "img");
     wrapper.append(c);
-    card.append(wrapper);
+    card.append(h, wrapper);
     plotContainer.append(card);
     plots[index] = c;
   }
+  const stale = document.createElement("div");
+  stale.className = "t1d-stale";
+  stale.textContent = "Stale Results \u2014 Click Run";
+  stale.hidden = true;
+  plotContainer.append(stale);
   const inspectorHost = document.createElement("section");
   const inspector = GlassBoxInspectorDrawer(inspectorHost);
-  view2.replaceChildren(intro, OmittedPhysiologyPanel(), timeline, formulas, plotContainer, inspectorHost);
-  const scenario = controls2.querySelector("#t1dScenario"), slider = controls2.querySelector("#t1dGb"), display = controls2.querySelector("#t1dGbLabel"), runButton = controls2.querySelector("#t1dRun"), exportButton = controls2.querySelector("#t1dExport"), status = controls2.querySelector("#t1dStatus");
-  let runs = [], charts = [];
+  view2.replaceChildren(style, intro, OmittedPhysiologyPanel(), alert, timeline, formulas, plotContainer, inspectorHost);
+  const scenario = controls2.querySelector("#t1dScenario"), oxygen = controls2.querySelector("#t1dOxygen"), cd47 = controls2.querySelector("#t1dCd47"), slider = controls2.querySelector("#t1dGb"), display = controls2.querySelector("#t1dGbLabel"), runButton = controls2.querySelector("#t1dRun"), exportButton = controls2.querySelector("#t1dExport"), status = controls2.querySelector("#t1dStatus");
+  const timeInput = timeline.querySelector("#t1dTime"), timeLabel = timeline.querySelector("#t1dTimeValue"), activeRun = timeline.querySelector("#t1dActiveRun");
+  let runs = [], charts = [], selectedRun = 0, selectedFrame = 0, selectedCurve = "glucose";
   display.textContent = slider.value;
-  const timeInput = timeline.querySelector("#t1dTime"), timeLabel = timeline.querySelector("#t1dTimeValue");
-  timeInput.addEventListener("input", () => {
-    timeLabel.textContent = timeInput.value;
-    if (runs.length) inspector.show(runs[0], runs[0].frames[Math.round(Number(timeInput.value) * 10)], "glucose");
-  });
+  const inspect = () => {
+    if (runs[selectedRun]) inspector.show(runs[selectedRun], runs[selectedRun].frames[selectedFrame], selectedCurve);
+  };
+  const markStale = () => {
+    exportButton.disabled = true;
+    status.textContent = "Stale Results \u2014 Click Run";
+    if (runs.length) {
+      stale.hidden = false;
+      alert.hidden = true;
+      timeInput.disabled = true;
+      activeRun.disabled = true;
+      inspectorHost.style.display = "none";
+    }
+  };
+  const updateControls = () => {
+    const graft = scenario.value === "graft" || scenario.value === "basal-compare";
+    oxygen.disabled = !graft;
+    cd47.disabled = !graft || scenario.value === "basal-compare";
+  };
+  const changeScenario = () => {
+    updateControls();
+    markStale();
+  };
+  updateControls();
   slider.addEventListener("input", () => {
     display.textContent = slider.value;
-    exportButton.disabled = true;
-    status.textContent = "Parameters changed. Run simulation to update results.";
+    markStale();
   });
-  scenario.addEventListener("change", () => {
-    exportButton.disabled = true;
-    status.textContent = "Scenario changed. Run simulation to update results.";
+  scenario.addEventListener("change", changeScenario);
+  oxygen.addEventListener("change", markStale);
+  cd47.addEventListener("change", markStale);
+  timeInput.addEventListener("input", () => {
+    selectedFrame = Math.round(Number(timeInput.value) * 10);
+    timeLabel.textContent = timeInput.value;
+    inspect();
+  });
+  activeRun.addEventListener("change", () => {
+    selectedRun = Number(activeRun.value);
+    inspect();
   });
   for (const [key, label] of Object.entries({ glucose: "Glucose equation", sensor: "Sensor equation", insulin: "Insulin equation", oxygen: "Oxygen equation", viability: "Viability equation" })) {
     const button = document.createElement("button");
     button.textContent = label;
     button.addEventListener("click", () => {
-      if (runs.length) inspector.show(runs[0], runs[0].frames[0], key);
+      selectedCurve = key;
+      inspect();
     });
     formulas.append(button);
   }
@@ -482,19 +663,75 @@ function T1DWorkbenchView(controls2, view2) {
     status.textContent = "Running\u2026";
     setTimeout(() => {
       try {
-        const value = validateParameterValue(p, Number(slider.value)), selected = scenario.value;
-        runs = selected === "graft" ? [simulate(selected, value, true), simulate(selected, value, false)] : [simulate(selected, value)];
+        const value = validateParameterValue(p, Number(slider.value));
+        const opts = { oxygenMmHg: Number(oxygen.value), cd47: Number(cd47.value), basalEnabled: true };
+        switch (scenario.value) {
+          case "fasting":
+            runs = [simulate("fasting", value)];
+            break;
+          case "meal":
+            runs = [simulate("meal", value)];
+            break;
+          case "basal-compare":
+            runs = [simulate("graft", value, { ...opts, cd47: 6e5, basalEnabled: true }), simulate("graft", value, { ...opts, cd47: 6e5, basalEnabled: false })];
+            break;
+          case "graft":
+            runs = [simulate("graft", value, opts)];
+            break;
+          default:
+            throw new Error("Unknown scenario");
+        }
+        selectedRun = 0;
+        selectedFrame = 0;
+        selectedCurve = "glucose";
+        activeRun.replaceChildren();
+        runs.forEach((run, i) => {
+          const option = document.createElement("option");
+          option.value = String(i);
+          option.textContent = run.label;
+          activeRun.append(option);
+        });
+        activeRun.disabled = runs.length < 2;
+        for (const badge of panel.querySelectorAll("[data-parameter]")) {
+          const key = badge.dataset.parameter;
+          const active = isParameterActive(key, runs[0].scenario);
+          badge.dataset.active = String(active);
+          badge.textContent = `${T1D_PARAMETER_REGISTRY[key].provenanceType} \xB7 ${active ? "ACTIVE_IN_SOLVER" : "CONTEXTUAL_BENCHMARK"}`;
+        }
         charts.forEach((c) => c.destroy());
         charts = [];
-        const defs = [["glucose", "sensor"], ["insulin"], ["oxygen"], ["viability"]];
+        const lowRuns = runs.map((run) => {
+          const low = run.frames.reduce((a, b) => a.glucose < b.glucose ? a : b);
+          return { label: run.label, low };
+        }).filter((x) => x.low.glucose < 60);
+        alert.hidden = lowRuns.length === 0;
+        alert.className = lowRuns.length ? "t1d-threshold" : "";
+        alert.textContent = lowRuns.length ? `Model threshold below 60 mg/dL: ${lowRuns.map((x) => `${x.label}, ${x.low.glucose.toFixed(1)} mg/dL at ${x.low.time.toFixed(1)} min`).join("; ")}. Simulation only; not clinical guidance.` : "";
+        const defs = [["glucose", "sensor"], ["insulin"], ["oxygen"], ["viability"]], units = ["mg/dL", "pmol/L", "mmHg", "% viable"];
         defs.forEach((metrics, idx) => {
           const datasets = [];
           for (const [rIndex, run] of runs.entries()) for (const [metricIndex, metric] of metrics.entries()) {
-            if (idx > 1 && selected !== "graft") continue;
-            const data = run.frames.filter((_, i) => i % 50 === 0).map((f) => ({ x: f.time, y: Number.isFinite(f[metric]) ? f[metric] : null }));
+            if (idx > 1 && run.scenario !== "graft") continue;
+            const data = run.frames.filter((_, i) => i % 50 === 0).map((f) => ({ x: f.time, y: Number.isFinite(f[metric]) ? metric === "viability" ? 100 * f[metric] : f[metric] : null }));
             datasets.push({ label: `${run.label} \xB7 ${metric}`, data, borderColor: rIndex ? "#f78166" : metricIndex ? "#d2a8ff" : "#58a6ff", borderDash: metric === "sensor" ? [5, 4] : [], pointRadius: 0, pointHitRadius: 10, tension: 0, _run: rIndex, _metric: metric });
           }
-          const chart = new Chart(plots[idx], { type: "line", data: { datasets }, options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "nearest", intersect: false }, plugins: { legend: { labels: { color: "#cbd5e1" } } }, scales: { x: { type: "linear", ticks: { color: "#cbd5e1" }, grid: { color: "#2a3444" }, title: { display: true, text: "Time (min)", color: "#cbd5e1" } }, y: { ticks: { color: "#cbd5e1" }, grid: { color: "#2a3444" } } } } });
+          const threshold = { id: "t1d-threshold", afterDraw(chart2) {
+            if (idx !== 0 || !lowRuns.length) return;
+            const y = chart2.scales.y.getPixelForValue(60), area = chart2.chartArea;
+            if (y < area.top || y > area.bottom) return;
+            const ctx = chart2.ctx;
+            ctx.save();
+            ctx.strokeStyle = "#ffbd66";
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(area.left, y);
+            ctx.lineTo(area.right, y);
+            ctx.stroke();
+            ctx.fillStyle = "#ffdfad";
+            ctx.fillText("60 mg/dL", area.left + 4, y - 4);
+            ctx.restore();
+          } };
+          const chart = new Chart(plots[idx], { type: "line", data: { datasets }, plugins: [threshold], options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "nearest", intersect: false }, plugins: { legend: { labels: { color: "#cbd5e1" } } }, scales: { x: { type: "linear", ticks: { color: "#cbd5e1" }, grid: { color: "#2a3444" }, title: { display: true, text: "Time (min)", color: "#cbd5e1" } }, y: { ticks: { color: "#cbd5e1" }, grid: { color: "#2a3444" }, title: { display: true, text: units[idx], color: "#cbd5e1" } } } } });
           charts.push(chart);
           plots[idx].onclick = (event) => {
             if (!datasets.length) return;
@@ -503,15 +740,23 @@ function T1DWorkbenchView(controls2, view2) {
             const point = Math.max(0, Math.min(288, Math.round(time / 5)));
             let nearest = null, distance = Infinity;
             for (const ds of datasets) {
-              const value2 = ds.data[point]?.y;
-              if (value2 === null || value2 === void 0) continue;
-              const delta = Math.abs(chart.scales.y.getPixelForValue(value2) - event.offsetY);
+              const v = ds.data[point]?.y;
+              if (v === null || v === void 0) continue;
+              const delta = Math.abs(chart.scales.y.getPixelForValue(v) - event.offsetY);
               if (delta < distance) {
                 distance = delta;
                 nearest = ds;
               }
             }
-            if (nearest) inspector.show(runs[nearest._run], runs[nearest._run].frames[point * 50], nearest._metric);
+            if (nearest) {
+              selectedRun = nearest._run;
+              activeRun.value = String(selectedRun);
+              selectedFrame = point * 50;
+              selectedCurve = nearest._metric;
+              timeInput.value = String(selectedFrame / 10);
+              timeLabel.textContent = timeInput.value;
+              inspect();
+            }
           };
         });
         status.textContent = `Completed ${runs.length} ${runs.length === 1 ? "trajectory" : "trajectories"} at 0.1 min steps.`;
@@ -519,11 +764,15 @@ function T1DWorkbenchView(controls2, view2) {
         timeInput.disabled = false;
         timeInput.value = "0";
         timeLabel.textContent = "0";
+        stale.hidden = true;
       } catch (e) {
         runs = [];
         charts.forEach((c) => c.destroy());
         charts = [];
         timeInput.disabled = true;
+        activeRun.disabled = true;
+        alert.hidden = true;
+        stale.hidden = true;
         status.textContent = `Simulation failed: ${e instanceof Error ? e.message : String(e)}`;
       } finally {
         runButton.disabled = false;

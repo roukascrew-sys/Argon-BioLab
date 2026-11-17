@@ -112,6 +112,7 @@ var sourceRegistry = Object.freeze({
   oxygenAlginate: fixed("oxygenAlginate", "Dalg", 254e-11, "m\xB2/s", "Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices", "10.3389/fbioe.2022.884071", "Table 1"),
   oxygenIslet: fixed("oxygenIslet", "Dtissue", 124e-11, "m\xB2/s", "Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices", "10.3389/fbioe.2022.884071", "Table 1"),
   cellFraction: fixed("cellFraction", "Xcell", 0.01, "1", "Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices", "10.3389/fbioe.2022.884071", "Table 1"),
+  humanScaleCellFraction: fixed("humanScaleCellFraction", "Xcell", 0.058, "1", "Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices", "10.3389/fbioe.2022.884071", "Table 1, human-scale islet volume fraction"),
   breakfastGlucose: fixed("breakfastGlucose", "Gb", 119.1, "mg/dL", "Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day", "10.1177/1932296818757747", "Table 1"),
   breakfastWeight: fixed("breakfastWeight", "BW", 75.2, "kg", "Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day", "10.1177/1932296818757747", "Table 1"),
   breakfastRatio: fixed("breakfastRatio", "CR", 16.9, "g/U", "Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day", "10.1177/1932296818757747", "Table 1")
@@ -161,7 +162,7 @@ var activeKeys = {
   oxygenCritical: graftScenarios,
   oxygenSmoothingWidth: graftScenarios,
   oxygenHenryCoefficient: graftScenarios,
-  cellFraction: graftScenarios,
+  humanScaleCellFraction: graftScenarios,
   cd47Lower: graftScenarios,
   cd47Upper: graftScenarios,
   immuneReject: graftScenarios,
@@ -345,16 +346,17 @@ function publishedModelStep(t, state, dt, p, meal2, kp1, inputs, coupling) {
 // src/modules/t1d/utils/simulation.ts
 function simulate(scenario, basalGlucose, options = true) {
   validateParameterValue(T1D_PARAMETER_REGISTRY.adultFastingGlucose, basalGlucose);
-  if (typeof options !== "boolean" && (![15, 76, 140].includes(options.oxygenMmHg) || ![0, 2e5, 6e5].includes(options.cd47) || typeof options.basalEnabled !== "boolean")) throw new RangeError("Unsupported scenario controls");
+  if (typeof options !== "boolean" && (![15, 76, 140].includes(options.oxygenMmHg) || ![0, 2e5, 6e5].includes(options.cd47) || typeof options.basalEnabled !== "boolean" || options.halfThicknessUm !== void 0 && ![150, 250, 500].includes(options.halfThicknessUm))) throw new RangeError("Unsupported scenario controls");
   const params = { ...publishedModelParameters(), Gb: basalGlucose }, init = initializePublishedModel(params), dt = 0.1;
   const meal2 = { kgri: T1D_PARAMETER_REGISTRY.mealKgri.value, kmin: T1D_PARAMETER_REGISTRY.mealKmin.value, kmax: T1D_PARAMETER_REGISTRY.mealKmax.value, kabs: T1D_PARAMETER_REGISTRY.mealKabs.value, fraction: T1D_PARAMETER_REGISTRY.mealFraction.value, b: T1D_PARAMETER_REGISTRY.modelMealB.value, d: T1D_PARAMETER_REGISTRY.modelMealC.value, dose: T1D_PARAMETER_REGISTRY.mealReferenceDose.value, bodyWeight: T1D_PARAMETER_REGISTRY.breakfastWeight.value };
-  const cellFraction = T1D_PARAMETER_REGISTRY.cellFraction.value, graftActive = scenario === "graft";
+  const cellFraction = T1D_PARAMETER_REGISTRY.humanScaleCellFraction.value, graftActive = scenario === "graft";
   const legacy = typeof options === "boolean";
   const boundary = legacy ? options ? 0.2 : 0 : options.oxygenMmHg * T1D_PARAMETER_REGISTRY.oxygenHenryCoefficient.value;
   const cd47 = legacy ? options ? T1D_PARAMETER_REGISTRY.cd47Upper.value : 0 : options.cd47, basalEnabled = legacy || options.basalEnabled;
-  const oxygen = { diffusion: (1 - cellFraction) * T1D_PARAMETER_REGISTRY.oxygenAlginate.value + cellFraction * T1D_PARAMETER_REGISTRY.oxygenIslet.value, rmax: T1D_PARAMETER_REGISTRY.oxygenMaxConsumption.value, km: T1D_PARAMETER_REGISTRY.oxygenKm.value, critical: T1D_PARAMETER_REGISTRY.oxygenCritical.value, smoothingWidth: T1D_PARAMETER_REGISTRY.oxygenSmoothingWidth.value, dx: 1e-4, boundary };
-  const coupling = graftActive ? { oxygen, points: 4, cellFraction, cd47, b2mKnockout: true, ciitaKnockout: true, cd47Low: T1D_PARAMETER_REGISTRY.cd47Lower.value, cd47High: T1D_PARAMETER_REGISTRY.cd47Upper.value, immuneMax: T1D_PARAMETER_REGISTRY.immuneReject.value, hypoxiaMax: T1D_PARAMETER_REGISTRY.hypoxiaMax.value, graft: { fraction: 1, gamma: T1D_PARAMETER_REGISTRY.graftGamma.value, K: T1D_PARAMETER_REGISTRY.graftK.value, alpha: T1D_PARAMETER_REGISTRY.graftAlpha.value, beta: T1D_PARAMETER_REGISTRY.graftBeta.value, insulinVolumeLitresPerKg: params.VI } } : void 0;
-  const core = graftActive ? steadyOxygenProfile(oxygen, 4, cellFraction)[0] : NaN;
+  const halfThicknessUm = legacy ? 500 : options.halfThicknessUm ?? 500, points = 21;
+  const oxygen = { diffusion: (1 - cellFraction) * T1D_PARAMETER_REGISTRY.oxygenAlginate.value + cellFraction * T1D_PARAMETER_REGISTRY.oxygenIslet.value, rmax: T1D_PARAMETER_REGISTRY.oxygenMaxConsumption.value, km: T1D_PARAMETER_REGISTRY.oxygenKm.value, critical: T1D_PARAMETER_REGISTRY.oxygenCritical.value, smoothingWidth: T1D_PARAMETER_REGISTRY.oxygenSmoothingWidth.value, dx: halfThicknessUm * 1e-6 / (points - 1), boundary };
+  const coupling = graftActive ? { oxygen, points, cellFraction, cd47, b2mKnockout: true, ciitaKnockout: true, cd47Low: T1D_PARAMETER_REGISTRY.cd47Lower.value, cd47High: T1D_PARAMETER_REGISTRY.cd47Upper.value, immuneMax: T1D_PARAMETER_REGISTRY.immuneReject.value, hypoxiaMax: T1D_PARAMETER_REGISTRY.hypoxiaMax.value, graft: { fraction: 1, gamma: T1D_PARAMETER_REGISTRY.graftGamma.value, K: T1D_PARAMETER_REGISTRY.graftK.value, alpha: T1D_PARAMETER_REGISTRY.graftAlpha.value, beta: T1D_PARAMETER_REGISTRY.graftBeta.value, insulinVolumeLitresPerKg: params.VI } } : void 0;
+  const core = graftActive ? steadyOxygenProfile(oxygen, points, cellFraction)[0] : NaN;
   const hypoxia = graftActive && core < oxygen.critical ? T1D_PARAMETER_REGISTRY.hypoxiaMax.value * (1 - core / oxygen.critical) : 0;
   const immune = graftActive ? T1D_PARAMETER_REGISTRY.immuneReject.value * (1 - Math.max(0, Math.min(1, (cd47 - T1D_PARAMETER_REGISTRY.cd47Lower.value) / (T1D_PARAMETER_REGISTRY.cd47Upper.value - T1D_PARAMETER_REGISTRY.cd47Lower.value)))) : 0;
   let state = graftActive ? [...init.state, 0, 0, 1] : [...init.state];
@@ -393,8 +395,8 @@ function simulate(scenario, basalGlucose, options = true) {
     state = publishedModelStep(t, state, dt, params, meal2, init.kp1, () => ({ ingestion, infusion: (basalEnabled ? init.basal : 0) + bolus }), coupling);
     capture((i + 1) * dt);
   }
-  const label = scenario === "graft" ? legacy ? options ? "Normoxic HIP graft" : "Hypoxic / unprotected graft" : `Graft \xB7 ${options.oxygenMmHg} mmHg \xB7 CD47 ${cd47.toLocaleString()} \xB7 ${basalEnabled ? "basal maintained" : "basal off"}` : scenario === "meal" ? "60 g meal + bolus" : "Fasting baseline (basal insulin maintained)";
-  return { scenario, label, dt, initialState, params, meal: meal2, kp1: init.kp1, basal: basalEnabled ? init.basal : 0, coupling, protocol: { mealMg: scenario === "fasting" ? 0 : 6e4, mealStartMin: 60, mealDurationMin: 15, bolusUnits: scenario === "fasting" ? 0 : 60 / T1D_PARAMETER_REGISTRY.breakfastRatio.value, bolusStartMin: 60, bolusDurationMin: 1, durationMin: 1440 }, boundaryAssumptions: `4-point slab; dx 0.0001 m; surface oxygen ${boundary} mol/m\xB3; Henry coefficient ${T1D_PARAMETER_REGISTRY.oxygenHenryCoefficient.value} mol/(m\xB3 mmHg); initial SC depots at fasting equilibrium even if basal is switched off at t=0.`, frames };
+  const label = scenario === "graft" ? `${legacy ? options ? "Normoxic HIP graft" : "Hypoxic / unprotected graft" : `Graft \xB7 ${options.oxygenMmHg} mmHg \xB7 CD47 ${cd47.toLocaleString()} \xB7 ${basalEnabled ? "basal maintained" : "basal off"}`} \xB7 ${halfThicknessUm} \xB5m` : scenario === "meal" ? "60 g meal + bolus" : "Fasting baseline (basal insulin maintained)";
+  return { scenario, label, dt, initialState, params, meal: meal2, kp1: init.kp1, basal: basalEnabled ? init.basal : 0, coupling, protocol: { mealMg: scenario === "fasting" ? 0 : 6e4, mealStartMin: 60, mealDurationMin: 15, bolusUnits: scenario === "fasting" ? 0 : 60 / T1D_PARAMETER_REGISTRY.breakfastRatio.value, bolusStartMin: 60, bolusDurationMin: 1, durationMin: 1440 }, boundaryAssumptions: `${points}-point slab; half-thickness ${halfThicknessUm} \xB5m; dx ${oxygen.dx} m; islet volume fraction ${cellFraction}; surface oxygen ${boundary} mol/m\xB3; Henry coefficient ${T1D_PARAMETER_REGISTRY.oxygenHenryCoefficient.value} mol/(m\xB3 mmHg); initial SC depots at fasting equilibrium even if basal is switched off at t=0.`, frames };
 }
 
 // src/modules/t1d/utils/reproducibilityExporter.ts
@@ -458,6 +460,31 @@ function downloadBundle(runs) {
   const files = makeBundle(runs);
   download("t1d-provenance.json", files.json, "application/json");
   download("t1d-trajectory.csv", files.csv, "text/csv");
+}
+
+// src/modules/t1d/utils/resultsSummary.ts
+function summarizeRun(run) {
+  if (run.frames.length < 2) throw new RangeError("A summary needs a trajectory with at least two samples");
+  let duration = 0, inRange = 0, peak = -Infinity, minimum = Infinity;
+  for (let i = 0; i < run.frames.length; i++) {
+    const frame = run.frames[i];
+    peak = Math.max(peak, frame.glucose);
+    minimum = Math.min(minimum, frame.glucose);
+    if (i + 1 < run.frames.length) {
+      const dt = run.frames[i + 1].time - frame.time;
+      if (!Number.isFinite(dt) || dt <= 0) throw new RangeError("Trajectory times must strictly increase");
+      duration += dt;
+      if (frame.glucose >= 70 && frame.glucose <= 180) inRange += dt;
+    }
+  }
+  const finalViability = run.frames[run.frames.length - 1].viability;
+  return {
+    timeInRangePercent: 100 * inRange / duration,
+    peak,
+    minimum,
+    excursion: peak - run.params.Gb,
+    viabilityPercent: Number.isFinite(finalViability) ? finalViability * 100 : null
+  };
 }
 
 // src/modules/t1d/components/GlassBoxInspectorDrawer.tsx
@@ -541,6 +568,7 @@ function T1DWorkbenchView(controls2, view2) {
   controls2.innerHTML = `<h2>Type 1 Diabetes Workbench</h2>
   <div class="control-group"><label for="t1dScenario">Scenario</label><select id="t1dScenario"><option value="fasting">Fasting Baseline (Basal Insulin Maintained)</option><option value="meal">60 g Meal + Bolus</option><option value="graft">Graft: oxygen and CD47 settings</option><option value="basal-compare">HIP Graft + Full Basal vs HIP Graft (Basal-Off)</option></select></div>
   <div class="control-group"><label for="t1dOxygen">Capsule surface oxygen</label><select id="t1dOxygen"><option value="140">140 mmHg \xB7 normoxic</option><option value="76">76 mmHg \xB7 arterial</option><option value="15">15 mmHg \xB7 hypoxic</option></select></div>
+  <div class="control-group"><label for="t1dThickness">Capsule half-thickness</label><select id="t1dThickness"><option value="150">150 \xB5m</option><option value="250">250 \xB5m</option><option value="500" selected>500 \xB5m</option></select></div>
   <div class="control-group"><label for="t1dCd47">CD47 protection</label><select id="t1dCd47"><option value="600000">600,000 molecules/cell \xB7 HIP</option><option value="200000">200,000 molecules/cell \xB7 threshold</option><option value="0">0 molecules/cell \xB7 DKO</option></select><small>Basal comparison fixes CD47 at HIP; oxygen remains selectable. Basal-off stops infusion at time zero, retaining the initial insulin already in the modeled depots.</small></div>
   <div class="control-group"><label for="t1dGb">Adult fasting glucose <span id="t1dGbLabel" class="val-display"></span></label><input id="t1dGb" type="range" min="${p.minBound}" max="${p.maxBound}" step="0.1" value="${p.value}"><small>Adult cohort range (mg/dL); adjusts model baseline.</small></div><button class="primary" id="t1dRun">Run simulation</button><button id="t1dExport" disabled>Download reproducibility bundle</button><p id="t1dStatus" role="status">Choose a scenario, then run.</p><details><summary>Parameter provenance</summary><div id="t1dParameters"></div></details>`;
   const panel = controls2.querySelector("#t1dParameters");
@@ -566,18 +594,26 @@ function T1DWorkbenchView(controls2, view2) {
   }
   view2.style.gap = "12px";
   const style = document.createElement("style");
-  style.textContent = `.t1d-badge{display:inline-block;border:1px solid #5276a1;border-radius:10px;padding:2px 6px;color:#b6d6ff;background:#20324a;font-size:.65rem}.t1d-badge[data-active="true"]{border-color:#3fb950;color:#adf3bb;background:#173621}.t1d-badge[data-active="false"]{opacity:.7}#view-t1d a,#ctrl-t1d a{color:#79c0ff}.t1d-threshold{border:1px solid #f0a64b;color:#ffe2ad;background:#493116;padding:8px;border-radius:6px}.t1d-stale{position:absolute;inset:0;z-index:2;background:rgba(11,15,23,.88);display:grid;place-items:center;text-align:center;font-weight:bold;color:#fff;pointer-events:auto}.t1d-stale[hidden]{display:none}`;
+  style.textContent = `.t1d-badge{display:inline-block;border:1px solid #5276a1;border-radius:10px;padding:2px 6px;color:#b6d6ff;background:#20324a;font-size:.65rem}.t1d-badge[data-active="true"]{border-color:#3fb950;color:#adf3bb;background:#173621}.t1d-badge[data-active="false"]{opacity:.7}#view-t1d a,#ctrl-t1d a{color:#79c0ff}.t1d-threshold{border:1px solid #f0a64b;color:#ffe2ad;background:#493116;padding:8px;border-radius:6px}.t1d-stale{position:absolute;inset:0;z-index:2;background:rgba(11,15,23,.88);display:grid;place-items:center;text-align:center;font-weight:bold;color:#fff;pointer-events:auto}.t1d-stale[hidden]{display:none}.t1d-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px}.t1d-summary[hidden]{display:none}.t1d-summary .metric-card{text-align:left}.t1d-empty{color:#b8c7d9;padding:3rem 1rem;text-align:center}.t1d-takeaway{border-left:3px solid #58a6ff}`;
   const intro = document.createElement("div");
-  intro.innerHTML = "<h2>T1D Simulation</h2><p>Select a plotted point or equation to inspect it. Oxygen choices specify capsule surface tension, not the oxygen at the core.</p>";
+  intro.innerHTML = "<h2>T1D Simulation</h2><p>Select a plotted point or equation to inspect it. Oxygen choices specify capsule surface tension, not the oxygen at the core. The shaded 70\u2013180 mg/dL range is a simulation reference, not a personalized target.</p>";
   const alert = document.createElement("div");
   alert.setAttribute("role", "status");
   alert.hidden = true;
+  const takeaway = document.createElement("section");
+  takeaway.className = "card t1d-takeaway";
+  takeaway.setAttribute("aria-live", "polite");
+  takeaway.hidden = true;
+  const summary = document.createElement("section");
+  summary.className = "t1d-summary";
+  summary.setAttribute("aria-label", "Glycemic summary");
+  summary.hidden = true;
   const timeline = document.createElement("div");
   timeline.className = "card";
   timeline.innerHTML = '<label for="t1dActiveRun">Inspect comparison run</label><select id="t1dActiveRun" disabled></select><label for="t1dTime">Inspect timestamp (minutes) <span id="t1dTimeValue" class="val-display">0</span></label><input id="t1dTime" type="range" min="0" max="1440" step="0.1" value="0" disabled>';
   const plotContainer = document.createElement("div");
   plotContainer.style.position = "relative";
-  const plots = [];
+  const plots = [], emptyStates = [];
   const formulas = document.createElement("div");
   formulas.className = "btn-row";
   for (const [index, label] of ["Plasma and sensor glucose", "Plasma insulin", "Core oxygen", "Graft viability"].entries()) {
@@ -587,12 +623,25 @@ function T1DWorkbenchView(controls2, view2) {
     const h = document.createElement("h2");
     h.textContent = label;
     const wrapper = document.createElement("div");
-    wrapper.style.height = "190px";
+    wrapper.style.height = index === 0 ? "170px" : "190px";
     const c = document.createElement("canvas");
     c.setAttribute("aria-label", label);
     c.setAttribute("role", "img");
-    wrapper.append(c);
-    card.append(h, wrapper);
+    const empty = document.createElement("p");
+    empty.className = "t1d-empty";
+    empty.textContent = index === 2 ? "No graft is present in this scenario, so core oxygen is not simulated." : "No graft is present in this scenario, so graft viability is not simulated.";
+    empty.hidden = true;
+    wrapper.append(c, empty);
+    emptyStates[index] = empty;
+    card.append(h);
+    if (index === 0) {
+      const legend = document.createElement("p");
+      legend.textContent = "\u25B0 70\u2013180 mg/dL reference (not personalized)";
+      legend.style.color = "#91d5b1";
+      legend.style.fontSize = "0.72rem";
+      card.append(legend);
+    }
+    card.append(wrapper);
     plotContainer.append(card);
     plots[index] = c;
   }
@@ -603,11 +652,40 @@ function T1DWorkbenchView(controls2, view2) {
   plotContainer.append(stale);
   const inspectorHost = document.createElement("section");
   const inspector = GlassBoxInspectorDrawer(inspectorHost);
-  view2.replaceChildren(style, intro, OmittedPhysiologyPanel(), alert, timeline, formulas, plotContainer, inspectorHost);
-  const scenario = controls2.querySelector("#t1dScenario"), oxygen = controls2.querySelector("#t1dOxygen"), cd47 = controls2.querySelector("#t1dCd47"), slider = controls2.querySelector("#t1dGb"), display = controls2.querySelector("#t1dGbLabel"), runButton = controls2.querySelector("#t1dRun"), exportButton = controls2.querySelector("#t1dExport"), status = controls2.querySelector("#t1dStatus");
+  view2.replaceChildren(style, intro, OmittedPhysiologyPanel(), alert, takeaway, summary, timeline, formulas, plotContainer, inspectorHost);
+  const scenario = controls2.querySelector("#t1dScenario"), oxygen = controls2.querySelector("#t1dOxygen"), thickness = controls2.querySelector("#t1dThickness"), cd47 = controls2.querySelector("#t1dCd47"), slider = controls2.querySelector("#t1dGb"), display = controls2.querySelector("#t1dGbLabel"), runButton = controls2.querySelector("#t1dRun"), exportButton = controls2.querySelector("#t1dExport"), status = controls2.querySelector("#t1dStatus");
   const timeInput = timeline.querySelector("#t1dTime"), timeLabel = timeline.querySelector("#t1dTimeValue"), activeRun = timeline.querySelector("#t1dActiveRun");
   let runs = [], charts = [], selectedRun = 0, selectedFrame = 0, selectedCurve = "glucose";
   display.textContent = slider.value;
+  const renderResults = () => {
+    const run = runs[selectedRun];
+    if (!run) return;
+    const result = summarizeRun(run);
+    takeaway.replaceChildren();
+    const heading = document.createElement("h2");
+    heading.textContent = "Result takeaway";
+    const message = document.createElement("p");
+    message.textContent = `In ${run.label}, simulated glucose rose at most ${result.excursion.toFixed(1)} mg/dL above its starting level and reached a minimum of ${result.minimum.toFixed(1)} mg/dL.${result.viabilityPercent === null ? " No graft was included." : ` After 24 hours, ${result.viabilityPercent.toFixed(1)}% of the modeled graft remained viable.`} This is a simulation, not medical advice.`;
+    takeaway.append(heading, message);
+    takeaway.hidden = false;
+    summary.replaceChildren();
+    for (const [label, value] of [["Time in range (simulated plasma)", `${result.timeInRangePercent.toFixed(1)}%`], ["Peak glucose", `${result.peak.toFixed(1)} mg/dL`], ["Minimum glucose", `${result.minimum.toFixed(1)} mg/dL`], ["24 h graft survival", result.viabilityPercent === null ? "Not applicable" : `${result.viabilityPercent.toFixed(1)}%`]]) {
+      const card = document.createElement("div");
+      card.className = "metric-card";
+      const name = document.createElement("div");
+      name.className = "label";
+      name.textContent = label;
+      const val = document.createElement("div");
+      val.className = "val";
+      val.textContent = value;
+      card.append(name, val);
+      summary.append(card);
+    }
+    const note = document.createElement("p");
+    note.textContent = "Time in range is simulated plasma glucose within 70\u2013180 mg/dL, weighted by recorded intervals. This reference range is not a personalized target.";
+    summary.append(note);
+    summary.hidden = false;
+  };
   const inspect = () => {
     if (runs[selectedRun]) inspector.show(runs[selectedRun], runs[selectedRun].frames[selectedFrame], selectedCurve);
   };
@@ -617,6 +695,8 @@ function T1DWorkbenchView(controls2, view2) {
     if (runs.length) {
       stale.hidden = false;
       alert.hidden = true;
+      takeaway.hidden = true;
+      summary.hidden = true;
       timeInput.disabled = true;
       activeRun.disabled = true;
       inspectorHost.style.display = "none";
@@ -625,6 +705,7 @@ function T1DWorkbenchView(controls2, view2) {
   const updateControls = () => {
     const graft = scenario.value === "graft" || scenario.value === "basal-compare";
     oxygen.disabled = !graft;
+    thickness.disabled = !graft;
     cd47.disabled = !graft || scenario.value === "basal-compare";
   };
   const changeScenario = () => {
@@ -638,6 +719,7 @@ function T1DWorkbenchView(controls2, view2) {
   });
   scenario.addEventListener("change", changeScenario);
   oxygen.addEventListener("change", markStale);
+  thickness.addEventListener("change", markStale);
   cd47.addEventListener("change", markStale);
   timeInput.addEventListener("input", () => {
     selectedFrame = Math.round(Number(timeInput.value) * 10);
@@ -646,6 +728,7 @@ function T1DWorkbenchView(controls2, view2) {
   });
   activeRun.addEventListener("change", () => {
     selectedRun = Number(activeRun.value);
+    renderResults();
     inspect();
   });
   for (const [key, label] of Object.entries({ glucose: "Glucose equation", sensor: "Sensor equation", insulin: "Insulin equation", oxygen: "Oxygen equation", viability: "Viability equation" })) {
@@ -664,7 +747,7 @@ function T1DWorkbenchView(controls2, view2) {
     setTimeout(() => {
       try {
         const value = validateParameterValue(p, Number(slider.value));
-        const opts = { oxygenMmHg: Number(oxygen.value), cd47: Number(cd47.value), basalEnabled: true };
+        const opts = { oxygenMmHg: Number(oxygen.value), cd47: Number(cd47.value), basalEnabled: true, halfThicknessUm: Number(thickness.value) };
         switch (scenario.value) {
           case "fasting":
             runs = [simulate("fasting", value)];
@@ -692,6 +775,7 @@ function T1DWorkbenchView(controls2, view2) {
           activeRun.append(option);
         });
         activeRun.disabled = runs.length < 2;
+        renderResults();
         for (const badge of panel.querySelectorAll("[data-parameter]")) {
           const key = badge.dataset.parameter;
           const active = isParameterActive(key, runs[0].scenario);
@@ -715,23 +799,59 @@ function T1DWorkbenchView(controls2, view2) {
             const data = run.frames.filter((_, i) => i % 50 === 0).map((f) => ({ x: f.time, y: Number.isFinite(f[metric]) ? metric === "viability" ? 100 * f[metric] : f[metric] : null }));
             datasets.push({ label: `${run.label} \xB7 ${metric}`, data, borderColor: rIndex ? "#f78166" : metricIndex ? "#d2a8ff" : "#58a6ff", borderDash: metric === "sensor" ? [5, 4] : [], pointRadius: 0, pointHitRadius: 10, tension: 0, _run: rIndex, _metric: metric });
           }
-          const threshold = { id: "t1d-threshold", afterDraw(chart2) {
-            if (idx !== 0 || !lowRuns.length) return;
-            const y = chart2.scales.y.getPixelForValue(60), area = chart2.chartArea;
-            if (y < area.top || y > area.bottom) return;
-            const ctx = chart2.ctx;
+          const isEmpty = idx > 1 && runs.every((run) => run.scenario !== "graft");
+          emptyStates[idx].hidden = !isEmpty;
+          plots[idx].hidden = isEmpty;
+          plots[idx].style.display = isEmpty ? "none" : "";
+          if (isEmpty) {
+            plots[idx].onclick = null;
+            return;
+          }
+          const annotations = { id: "t1d-annotations", beforeDatasetsDraw(chart2) {
+            if (idx !== 0) return;
+            const area = chart2.chartArea, ctx = chart2.ctx, y70 = chart2.scales.y.getPixelForValue(70), y180 = chart2.scales.y.getPixelForValue(180), top = Math.max(area.top, Math.min(y70, y180)), bottom = Math.min(area.bottom, Math.max(y70, y180));
+            if (bottom > top) {
+              ctx.save();
+              ctx.fillStyle = "rgba(46,160,90,0.15)";
+              ctx.fillRect(area.left, top, area.right - area.left, bottom - top);
+              ctx.restore();
+            }
+          }, afterDatasetsDraw(chart2) {
+            if (idx !== 0) return;
+            const area = chart2.chartArea, ctx = chart2.ctx;
             ctx.save();
-            ctx.strokeStyle = "#ffbd66";
-            ctx.setLineDash([6, 4]);
-            ctx.beginPath();
-            ctx.moveTo(area.left, y);
-            ctx.lineTo(area.right, y);
-            ctx.stroke();
-            ctx.fillStyle = "#ffdfad";
-            ctx.fillText("60 mg/dL", area.left + 4, y - 4);
+            if (lowRuns.length) {
+              const y = chart2.scales.y.getPixelForValue(60);
+              if (y >= area.top && y <= area.bottom) {
+                ctx.strokeStyle = "#ffbd66";
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                ctx.moveTo(area.left, y);
+                ctx.lineTo(area.right, y);
+                ctx.stroke();
+                ctx.fillStyle = "#ffdfad";
+                ctx.fillText("60 mg/dL", area.left + 4, y - 4);
+              }
+            }
+            const protocol = runs[0].protocol;
+            if (protocol.mealMg > 0) {
+              const x = chart2.scales.x.getPixelForValue(protocol.mealStartMin);
+              if (x >= area.left && x <= area.right) {
+                ctx.strokeStyle = "#e7c36a";
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(x, area.top);
+                ctx.lineTo(x, area.bottom);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = "#ffe1a4";
+                const label = `t = ${protocol.mealStartMin} min: ${protocol.mealMg / 1e3} g meal + ${protocol.bolusUnits.toFixed(2)} U bolus`;
+                ctx.fillText(label, Math.max(area.left + 4, Math.min(x + 4, area.right - ctx.measureText(label).width - 4)), area.top + 12, area.right - area.left - 8);
+              }
+            }
             ctx.restore();
           } };
-          const chart = new Chart(plots[idx], { type: "line", data: { datasets }, plugins: [threshold], options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "nearest", intersect: false }, plugins: { legend: { labels: { color: "#cbd5e1" } } }, scales: { x: { type: "linear", ticks: { color: "#cbd5e1" }, grid: { color: "#2a3444" }, title: { display: true, text: "Time (min)", color: "#cbd5e1" } }, y: { ticks: { color: "#cbd5e1" }, grid: { color: "#2a3444" }, title: { display: true, text: units[idx], color: "#cbd5e1" } } } } });
+          const chart = new Chart(plots[idx], { type: "line", data: { datasets }, plugins: [annotations], options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "nearest", intersect: false }, plugins: { legend: { labels: { color: "#cbd5e1" } } }, scales: { x: { type: "linear", ticks: { color: "#cbd5e1" }, grid: { color: "#2a3444" }, title: { display: true, text: "Time (min)", color: "#cbd5e1" } }, y: { ticks: { color: "#cbd5e1" }, grid: { color: "#2a3444" }, title: { display: true, text: units[idx], color: "#cbd5e1" } } } } });
           charts.push(chart);
           plots[idx].onclick = (event) => {
             if (!datasets.length) return;
@@ -755,6 +875,7 @@ function T1DWorkbenchView(controls2, view2) {
               selectedCurve = nearest._metric;
               timeInput.value = String(selectedFrame / 10);
               timeLabel.textContent = timeInput.value;
+              renderResults();
               inspect();
             }
           };
@@ -772,6 +893,8 @@ function T1DWorkbenchView(controls2, view2) {
         timeInput.disabled = true;
         activeRun.disabled = true;
         alert.hidden = true;
+        takeaway.hidden = true;
+        summary.hidden = true;
         stale.hidden = true;
         status.textContent = `Simulation failed: ${e instanceof Error ? e.message : String(e)}`;
       } finally {

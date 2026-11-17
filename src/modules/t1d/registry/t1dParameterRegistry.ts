@@ -96,6 +96,7 @@ const sourceRegistry = Object.freeze({
   oxygenAlginate: fixed('oxygenAlginate', 'Dalg', 2.54e-9, 'm²/s', 'Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices', '10.3389/fbioe.2022.884071', 'Table 1'),
   oxygenIslet: fixed('oxygenIslet', 'Dtissue', 1.24e-9, 'm²/s', 'Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices', '10.3389/fbioe.2022.884071', 'Table 1'),
   cellFraction: fixed('cellFraction', 'Xcell', 0.01, '1', 'Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices', '10.3389/fbioe.2022.884071', 'Table 1'),
+  humanScaleCellFraction: fixed('humanScaleCellFraction', 'Xcell', 0.058, '1', 'Fernandez et al. (2022), Engineering Vascularized Islet Macroencapsulation Devices', '10.3389/fbioe.2022.884071', 'Table 1, human-scale islet volume fraction'),
   breakfastGlucose: fixed('breakfastGlucose', 'Gb', 119.1, 'mg/dL', 'Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day', '10.1177/1932296818757747', 'Table 1'),
   breakfastWeight: fixed('breakfastWeight', 'BW', 75.2, 'kg', 'Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day', '10.1177/1932296818757747', 'Table 1'),
   breakfastRatio: fixed('breakfastRatio', 'CR', 16.9, 'g/U', 'Visentin et al. (2018), The UVA/Padova Type 1 Diabetes Simulator Goes From Single Meal to Single Day', '10.1177/1932296818757747', 'Table 1')
@@ -116,7 +117,7 @@ const activeKeys: Partial<Record<T1DParameterKey, readonly T1DScenario[]>> = {
   mealReferenceDose: allScenarios, breakfastWeight: allScenarios, breakfastRatio: mealScenarios,
   oxygenAlginate: graftScenarios, oxygenIslet: graftScenarios, oxygenMaxConsumption: graftScenarios,
   oxygenKm: graftScenarios, oxygenCritical: graftScenarios, oxygenSmoothingWidth: graftScenarios,
-  oxygenHenryCoefficient: graftScenarios, cellFraction: graftScenarios, cd47Lower: graftScenarios,
+  oxygenHenryCoefficient: graftScenarios, humanScaleCellFraction: graftScenarios, cd47Lower: graftScenarios,
   cd47Upper: graftScenarios, immuneReject: graftScenarios, hypoxiaMax: graftScenarios,
   graftGamma: graftScenarios, graftK: graftScenarios, graftAlpha: graftScenarios, graftBeta: graftScenarios
 };

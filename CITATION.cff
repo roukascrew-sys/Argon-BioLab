@@ -3,6 +3,7 @@ message: "If you use this software in your research or educational work, please 
 title: "Argon BioLab: T1D Islet Graft & Glucose Workbench"
 version: "1.0.0"
 date-released: "2026-11-19"
+doi: "10.5281/zenodo.24381864"
 url: "https://github.com/roukascrew-sys/Argon-BioLab"
 license: MIT
 authors:

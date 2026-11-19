@@ -57,6 +57,14 @@
       color: var(--highlight);
       border-color: rgba(88, 166, 255, 0.35);
     }
+    .tab-btn[data-bench="t1d"] { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 5px 10px; background: #182a40; border-color: #355b82; color: #e6f2ff; text-align: left; }
+    .tab-btn[data-bench="t1d"] .mode-title { display: flex; align-items: center; gap: 6px; font-size: .75rem; font-weight: 700; }
+    .tab-btn[data-bench="t1d"] .mode-subtitle { color: #b4c9df; font-size: .62rem; }
+    .tab-btn[data-bench="t1d"] .mode-active { display: none; padding: 1px 5px; border-radius: 9px; color: #aaf0bc; background: #164c2b; font-size: .58rem; text-transform: uppercase; }
+    .tab-btn[data-bench="t1d"].active { background: #193955; border-color: #58a6ff; }
+    .tab-btn[data-bench="t1d"].active .mode-active { display: inline; }
+    .legacy-pill { align-self: center; flex-shrink: 0; margin: 0 4px 0 10px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 12px; color: #aab8c9; font-size: .65rem; white-space: nowrap; }
+    body:has(.tab-btn[data-bench="t1d"].active) #legacyExports { display: none; }
     .header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .status-badge {
       font-size: 0.68rem;
@@ -224,6 +232,20 @@
       flex: 1;
       min-height: 330px;
     }
+    /* Stack the T1D workspace on small screens without changing other benches. */
+    @media (max-width: 900px) {
+      body:has(.tab-btn[data-bench="t1d"].active) { height: auto; min-height: 100vh; overflow: auto; }
+      body:has(.tab-btn[data-bench="t1d"].active) header { height: auto; min-width: 0; padding: 10px 12px; flex-direction: column; align-items: stretch; gap: 8px; }
+      body:has(.tab-btn[data-bench="t1d"].active) .brand { display: block; min-width: 0; overflow: visible; }
+      body:has(.tab-btn[data-bench="t1d"].active) .brand h1 { margin-bottom: 8px; }
+      body:has(.tab-btn[data-bench="t1d"].active) .nav-tabs { width: 100%; overflow-x: auto; padding-bottom: 3px; }
+      body:has(.tab-btn[data-bench="t1d"].active) .header-actions { justify-content: space-between; flex-wrap: wrap; }
+      body:has(.tab-btn[data-bench="t1d"].active) .layout { display: flex; flex-direction: column; overflow: visible; min-width: 0; }
+      body:has(.tab-btn[data-bench="t1d"].active) .panel { border-right: 0; border-bottom: 1px solid var(--border); overflow: visible; min-width: 0; }
+      body:has(.tab-btn[data-bench="t1d"].active) .workspace-view { height: auto; overflow: visible; min-width: 0; }
+      body:has(.tab-btn[data-bench="t1d"].active) .panel.right { border-left: 0; border-top: 1px solid var(--border); }
+      body:has(.tab-btn[data-bench="t1d"].active) #elnTerminal { max-height: 15rem; }
+    }
   </style>
 </head>
 <body>
@@ -232,7 +254,9 @@
     <div class="brand">
       <h1>🔬 Virtual BioTech Lab v12.0</h1>
       <div class="nav-tabs">
-        <button class="tab-btn active" data-bench="molecular">1. 3D Molecular</button>
+        <button class="tab-btn active" data-bench="t1d"><span class="mode-title">T1D Workbench <span class="mode-active">Active</span></span><span class="mode-subtitle">Islet Graft &amp; Glucose Sandbox</span></button>
+        <span class="legacy-pill" title="Separate prototype modules — outside T1D v1.0 validation scope">Legacy Lab Prototypes</span>
+        <button class="tab-btn" data-bench="molecular">1. 3D Molecular</button>
         <button class="tab-btn" data-bench="wetlab">2. Kinetics</button>
         <button class="tab-btn" data-bench="genetics">3. Genetics &amp; Plasmid</button>
         <button class="tab-btn" data-bench="pcr">4. PCR &amp; Gel</button>
@@ -245,7 +269,7 @@
     </div>
     <div class="header-actions">
       <button id="runTestsBtn" style="width:auto; padding:5px 10px; border-color:#58a6ff; color:#58a6ff;">
-        ✓ Verify All 11 Modules
+        Verify T1D Suite
       </button>
       <span class="status-badge" id="globalStatus">ELN Hash-Chain Verified</span>
     </div>
@@ -255,7 +279,7 @@
     <!-- LEFT PANEL: BENCH CONTROLS -->
     <div class="panel">
       <!-- 1. Molecular Studio Controls -->
-      <div id="ctrl-molecular" class="bench-ctrl">
+      <div id="ctrl-molecular" class="bench-ctrl" style="display:none;">
         <h2>3D Macromolecule Explorer</h2>
         <div class="control-group">
           <label>Curated Structure Library</label>
@@ -594,12 +618,13 @@
         </div>
         <button class="primary" id="runCrisprBtn">Scan 24-Chr Genome &amp; Align Duplex</button>
       </div>
+      <div id="ctrl-t1d" class="bench-ctrl"></div>
     </div>
 
     <!-- CENTER WORKSPACE -->
     <div class="workspace-view">
       <!-- Bench 1: 3D Molecular Studio -->
-      <div id="view-molecular" class="bench-view" style="display:flex; flex-direction:column; flex:1; gap:12px;">
+      <div id="view-molecular" class="bench-view" style="display:none; flex-direction:column; flex:1; gap:12px;">
         <div class="mol-container">
           <div id="molViewport"></div>
         </div>
@@ -768,19 +793,20 @@
           <div class="metric-card"><div class="label">NHEJ Indel Knockout</div><div class="val" id="crStatNhej">— %</div></div>
         </div>
       </div>
+      <div id="view-t1d" class="bench-view" style="display:flex; flex-direction:column; flex:1; gap:12px;"></div>
     </div>
 
     <!-- RIGHT PANEL: ELECTRONIC LAB NOTEBOOK & DATA EXPORT -->
     <div class="panel right">
-      <h2>Atomic, Vector, Organ, Cell &amp; Locus Inspector</h2>
+      <h2 id="inspectorTitle">T1D Verification</h2>
       <div class="seq-box" id="inspectorBox">
-        System initialized. Select any bench tab, click atoms in 3D space, hover over the plasmid vector, inspect microwells, human organs, CAR-T synapses, or CRISPR chromosomal loci.
+        Select Verify T1D Suite to check the fasting equilibrium and parameter provenance. Select a plotted point or equation to open the glass-box inspector.
       </div>
 
       <h2>Electronic Lab Notebook (21 CFR Part 11 Hash-Chained)</h2>
       <pre id="elnTerminal"></pre>
 
-      <div class="btn-row">
+      <div class="btn-row" id="legacyExports">
         <button id="exportCsvBtn">Export CSV Telemetry</button>
         <button id="exportJsonBtn">Export JSON Snapshot</button>
       </div>
@@ -788,6 +814,7 @@
   </div>
 
   <script type="module" src="./app.js"></script>
+  <script type="module" src="./t1d-workbench.js"></script>
 </body>
 </html>
 <!-- === END OF INDEX.HTML (v12.0) === -->

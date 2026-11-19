@@ -49,6 +49,9 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.bench-view').forEach(v => {
       v.style.display = v.id === `view-${target}` ? 'flex' : 'none';
     });
+    document.getElementById('runTestsBtn').textContent = target === 't1d' ? 'Verify T1D Suite' : '✓ Verify All Modules';
+    document.getElementById('inspectorTitle').textContent = target === 't1d' ? 'T1D Verification' : 'Atomic, Vector, Organ, Cell & Locus Inspector';
+    if (target === 't1d') inspectorBox.textContent = 'Select Verify T1D Suite to check the fasting equilibrium and parameter provenance. Select a plotted point or equation to open the glass-box inspector.';
     eln.setState({ activeBench: target }, false);
 
     if (target === 'molecular' && molStudio.viewer) {
@@ -979,6 +982,7 @@ executeCrisprScan(false);
 // MASTER VERIFICATION SUITE (ALL 11 SCIENTIFIC ENGINES) & EXPORTERS
 // ============================================================================
 document.getElementById('runTestsBtn').addEventListener('click', () => {
+  if (document.querySelector('.tab-btn[data-bench="t1d"].active')) return;
   const allResults = [
     ...runKineticsTests(),
     ...runGeneticsTests(),
@@ -1030,4 +1034,8 @@ document.getElementById('exportCsvBtn').addEventListener('click', () => {
 document.getElementById('exportJsonBtn').addEventListener('click', () => {
   downloadBlob(`${eln.sessionId}_snapshot.json`, eln.exportSessionJSON(), 'application/json');
 });
+
+// Use the existing tab router for shareable T1D and legacy landing URLs.
+const initialModule = new URLSearchParams(window.location.search).get('module');
+document.querySelector(`.tab-btn[data-bench="${initialModule === 'legacy' ? 'molecular' : 't1d'}"]`).click();
 // === END OF APP.JS (v12.0) ===

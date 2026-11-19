@@ -1,0 +1,15 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/modules/t1d/components/T1DWorkbenchView.tsx --bundle --format=esm --target=es2022 --outfile=\"Argon Biotech Lab/t1d-workbench.js\"",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "chart.js": "^4.6.1",
+    "esbuild": "^0.28.2",
+    "playwright-core": "^1.65.1",
+    "typescript": "^7.0.2"
+  }
+}

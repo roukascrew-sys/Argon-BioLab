@@ -1,0 +1,4 @@
+{
+ "compilerOptions": { "target":"ES2022", "module":"ESNext", "moduleResolution":"bundler", "allowImportingTsExtensions":true, "jsx":"preserve", "lib":["ES2022","DOM"], "strict":true, "skipLibCheck":true, "noEmit":true },
+ "include":["src/modules/t1d/**/*.ts", "src/modules/t1d/**/*.tsx", "src/mission-control/suites/t1d.suite.ts"]
+}

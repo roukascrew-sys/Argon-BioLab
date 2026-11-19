@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software in your research or educational work, please cite it using the metadata below."
+title: "Argon BioLab: T1D Islet Graft & Glucose Workbench"
+version: "1.0.0"
+date-released: "2026-11-19"
+url: "https://github.com/roukascrew-sys/Argon-BioLab"
+license: MIT
+authors:
+  - family-names: "Roukas"
+    given-names: "Gideon"
+keywords:
+  - "Type 1 Diabetes"
+  - "Islet Encapsulation"
+  - "Hypoimmune"
+  - "ODE Simulator"
+  - "UVA/Padova"
